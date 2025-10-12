@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    ports:
+      - "8000:8000"
+    depends_on:
+      - servicenow_service
+      - glpi_service
+    environment:
+      # Pass environment variables needed by the gateway
+      # For example, database URL if it connects directly
+      DB_URL: "sqlite:///./test.db" # Assuming the gateway still uses the local db
+      # Other environment variables for the gateway if any
+    volumes:
+      - ./test.db:/app/test.db # Mount the database file
+
+  servicenow_service:
+    build:
+      context: ./servicenow_service
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      # Environment variables for ServiceNow microservice
+      DB_URL: "sqlite:///./test.db" # Assuming it uses the same local db
+      SERVICE_MANAGER_API_URL: "${SERVICE_MANAGER_API_URL}"
+      SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
+      SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
+    volumes:
+      - ./test.db:/app/test.db # Mount the database file
+
+  glpi_service:
+    build:
+      context: ./glpi_service
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      # Environment variables for GLPI microservice
+      DB_URL: "sqlite:///./test.db" # Assuming it uses the same local db
+      GLPI_API_URL: "${GLPI_API_URL}"
+      GLPI_APP_TOKEN: "${GLPI_APP_TOKEN}"
+      GLPI_USERNAME: "${GLPI_USERNAME}"
+      GLPI_PASSWORD: "${GLPI_PASSWORD}"
+    volumes:
+      - ./test.db:/app/test.db # Mount the database file
