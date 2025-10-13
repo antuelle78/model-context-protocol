@@ -21,6 +21,7 @@ def handle_incidents():
             return jsonify({
                 "result": [
                     {
+                        "id": 1,
                         "number": "INC001001",
                         "short_description": "Printer not working",
                         "assignment_group": "IT Support",
@@ -29,6 +30,7 @@ def handle_incidents():
                         "sys_updated_on": "2025-10-11 09:00:00",
                     },
                     {
+                        "id": 2,
                         "number": "INC001002",
                         "short_description": "Laptop screen broken",
                         "assignment_group": "Hardware Support",
@@ -37,6 +39,7 @@ def handle_incidents():
                         "sys_updated_on": "2025-10-11 10:30:00",
                     },
                     {
+                        "id": 3,
                         "number": "INC001003",
                         "short_description": "Software installation failed",
                         "assignment_group": "Software Support",
@@ -45,6 +48,7 @@ def handle_incidents():
                         "sys_updated_on": "2025-10-11 11:45:00",
                     },
                     {
+                        "id": 4,
                         "number": "INC001004",
                         "short_description": "Network connectivity issue",
                         "assignment_group": "Network Team",
@@ -53,6 +57,7 @@ def handle_incidents():
                         "sys_updated_on": "2025-10-11 12:00:00",
                     },
                     {
+                        "id": 5,
                         "number": "INC001005",
                         "short_description": "Email not syncing",
                         "assignment_group": "IT Support",
@@ -61,6 +66,7 @@ def handle_incidents():
                         "sys_updated_on": "2025-10-11 13:15:00",
                     },
                     {
+                        "id": 6,
                         "number": "INC001006",
                         "short_description": "Password reset request",
                         "assignment_group": "IT Support",

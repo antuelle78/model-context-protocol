@@ -15,15 +15,16 @@ services:
       # For example, database URL if it connects directly
       DB_URL: "sqlite:///./test.db" # Assuming the gateway still uses the local db
       # Other environment variables for the gateway if any
+    env_file:
+      - .env
     volumes:
       - ./test.db:/app/test.db # Mount the database file
 
   servicenow_service:
     build:
-      context: ./servicenow_service
-      dockerfile: Dockerfile
-    ports:
-      - "8001:8001"
+      context: .
+      dockerfile: servicenow_service/Dockerfile
+    command: ["uvicorn", "servicenow_service.main:app", "--host", "0.0.0.0", "--port", "8001"]
     environment:
       # Environment variables for ServiceNow microservice
       DB_URL: "sqlite:///./test.db" # Assuming it uses the same local db
@@ -35,10 +36,9 @@ services:
 
   glpi_service:
     build:
-      context: ./glpi_service
-      dockerfile: Dockerfile
-    ports:
-      - "8002:8002"
+      context: .
+      dockerfile: glpi_service/Dockerfile
+    command: ["uvicorn", "glpi_service.main:app", "--host", "0.0.0.0", "--port", "8002"]
     environment:
       # Environment variables for GLPI microservice
       DB_URL: "sqlite:///./test.db" # Assuming it uses the same local db
@@ -48,3 +48,19 @@ services:
       GLPI_PASSWORD: "${GLPI_PASSWORD}"
     volumes:
       - ./test.db:/app/test.db # Mount the database file
+
+  mock_servicenow_api:
+    build:
+      context: ./mock_servicenow_api
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    command: ["python", "app.py"]
+
+  mock_glpi_api:
+    build:
+      context: ./mock_glpi_api
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    command: ["python", "app.py"]

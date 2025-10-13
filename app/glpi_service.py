@@ -8,7 +8,7 @@ class GlpiService:
         self.glpi = GLPI(
             url=settings.GLPI_API_URL,
             apptoken=settings.GLPI_APP_TOKEN,
-            auth=(settings.GLPI_USERNAME, settings.GLPI_PASSWORD)
+            user_token=settings.GLPI_ACCESS_TOKEN
         )
 
     def get_asset_count(self, itemtype: str, query_params: dict = None) -> int:

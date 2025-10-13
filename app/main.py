@@ -1,348 +1,261 @@
-import inspect
 from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from starlette.responses import StreamingResponse, JSONResponse
-import io
+from starlette.responses import JSONResponse
+import inspect
 import time
 import uuid
 import json
+import httpx
 
-
-from app.database import get_db, engine
-from app.models import Base
-from app import services, tools
+from app.database import get_db
+from app import tools
+from app.config import settings
 from app.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatMessage,
     ChatCompletionChoice,
-    FetchAllTicketsInput, # New import
-    ServiceNowToolInput, # New import
-    GLPIToolInput, # New import
+    GetReportOpenByPriorityArgs,
+    GetReportByAssignmentGroupArgs,
+    CreateNewTicketServiceNowArgs,
+    GetGlpiFullAssetDumpArgs,
 )
 
-# ... (rest of the imports)
+app = FastAPI()
 
-# Mapping of microservice tool names to their Pydantic input schemas
-MICROSERVICE_TOOL_SCHEMAS = {
-    "fetch_all_tickets": FetchAllTicketsInput,
-    # Add other ServiceNow and GLPI tools here as you create their schemas
-}
-
-from pydantic import ValidationError
-
-
-import httpx # Add httpx for making HTTP requests
-
-# Define ServiceNow tool names and their corresponding microservice endpoints
+# Define tool names and their corresponding microservice endpoints and schemas
 SERVICENOW_TOOLS = {
-    "get_report_open_by_priority": "/servicenow/reports/open_by_priority",
-    "get_report_by_assignment_group": "/servicenow/reports/by_assignment_group",
-    "get_report_recently_resolved": "/servicenow/reports/recently_resolved",
-    "create_new_ticket": "/servicenow/tickets/create",
-    "fetch_all_tickets": "/servicenow/tickets/fetch",
+    "get_report_open_by_priority": {
+        "endpoint": "/servicenow/reports/open_by_priority",
+        "description": "Get a report of open tickets by priority in ServiceNow.",
+        "schema": GetReportOpenByPriorityArgs,
+    },
+    "get_report_by_assignment_group": {
+        "endpoint": "/servicenow/reports/by_assignment_group",
+        "description": "Get a report of tickets by assignment group in ServiceNow.",
+        "schema": GetReportByAssignmentGroupArgs,
+    },
+    "get_report_recently_resolved": {
+        "endpoint": "/servicenow/reports/recently_resolved",
+        "description": "Get a report of recently resolved tickets in ServiceNow.",
+        "schema": None, # No specific arguments
+    },
+    "create_new_ticket": {
+        "endpoint": "/servicenow/tickets/create",
+        "description": "Create a new ticket in ServiceNow.",
+        "schema": CreateNewTicketServiceNowArgs,
+    },
+    "fetch_all_servicenow_tickets": {
+        "endpoint": "/servicenow/tickets/fetch_all_servicenow_tickets",
+        "description": "Fetch all tickets from ServiceNow.",
+        "schema": None, # No specific arguments
+    },
 }
-SERVICENOW_SERVICE_URL = "http://localhost:8001" # URL for the ServiceNow microservice
 
-# Define GLPI tool names and their corresponding microservice endpoints
 GLPI_TOOLS = {
-    "get_glpi_laptop_count": "/glpi/laptop_count",
-    "get_glpi_pc_count": "/glpi/pc_count",
-    "get_glpi_monitor_count": "/glpi/monitor_count",
-    "get_glpi_os_distribution": "/glpi/os_distribution",
-    "get_glpi_full_asset_dump": "/glpi/full_asset_dump",
+    "get_glpi_laptop_count": {
+        "endpoint": "/glpi/laptop_count",
+        "description": "Get the count of laptops in GLPI.",
+        "schema": None,
+    },
+    "get_glpi_pc_count": {
+        "endpoint": "/glpi/pc_count",
+        "description": "Get the count of PCs in GLPI.",
+        "schema": None,
+    },
+    "get_glpi_monitor_count": {
+        "endpoint": "/glpi/monitor_count",
+        "description": "Get the count of monitors in GLPI.",
+        "schema": None,
+    },
+    "get_glpi_os_distribution": {
+        "endpoint": "/glpi/os_distribution",
+        "description": "Get the OS distribution of assets in GLPI.",
+        "schema": None,
+    },
+    "get_glpi_full_asset_dump": {
+        "endpoint": "/glpi/full_asset_dump",
+        "description": "Get a full asset dump from GLPI.",
+        "schema": GetGlpiFullAssetDumpArgs,
+    },
+    "fetch_all_glpi_inventory": {
+        "endpoint": "/glpi/inventory",
+        "description": "Fetch all inventory from GLPI.",
+        "schema": None,
+    },
 }
-GLPI_SERVICE_URL = "http://localhost:8002" # URL for the GLPI microservice
 
 
+def get_tool_definitions():
+    """Generate a list of tool definitions for all available tools."""
+    tool_definitions = []
 
-# Endpoint for chat completions
+    # Add tools from the local 'tools' module
+    for tool_name, tool_func in tools.tools.items():
+        signature = inspect.signature(tool_func)
+        parameters = signature.parameters
+
+        input_properties = {}
+        required_params = []
+        for name, param in parameters.items():
+            if name == "db":
+                continue
+            input_properties[name] = {"type": "string"}
+            if param.default == inspect.Parameter.empty:
+                required_params.append(name)
+
+        tool_definitions.append({
+            "name": tool_name,
+            "title": tool_name.replace("_", " ").title(),
+            "description": tool_func.__doc__.strip() if tool_func.__doc__ else "",
+            "inputSchema": {
+                "type": "object",
+                "properties": input_properties,
+                "required": required_params,
+            },
+            "outputSchema": {"type": "object", "properties": {}},
+            "annotations": {},
+        })
+
+    # Add ServiceNow tools
+    for tool_name, tool_info in SERVICENOW_TOOLS.items():
+        input_schema = {"type": "object", "properties": {}, "required": []}
+        if tool_info["schema"]:
+            input_schema = tool_info["schema"].model_json_schema()
+
+        tool_definitions.append({
+            "name": tool_name,
+            "title": tool_name.replace("_", " ").title(),
+            "description": tool_info["description"],
+            "inputSchema": input_schema,
+            "outputSchema": {"type": "object", "properties": {"message": {"type": "string"}}},
+            "annotations": {},
+        })
+
+    # Add GLPI tools
+    for tool_name, tool_info in GLPI_TOOLS.items():
+        input_schema = {"type": "object", "properties": {}, "required": []}
+        if tool_info["schema"]:
+            input_schema = tool_info["schema"].model_json_schema()
+
+        tool_definitions.append({
+            "name": tool_name,
+            "title": tool_name.replace("_", " ").title(),
+            "description": tool_info["description"],
+            "inputSchema": input_schema,
+            "outputSchema": {"type": "object", "properties": {}},
+            "annotations": {},
+        })
+
+    return tool_definitions
+
+
 @app.post("/api/v1/chat/completions")
-async def chat_completions(
-    request: Request, db: Session = Depends(get_db)
-):
+async def chat_completions(request: Request, db: Session = Depends(get_db)):
     """
-    Handles chat completions, including tool calls.
+    Handles chat completions, including tool calls for both local and microservice tools.
     """
-    body = await request.json()
-    print(f"Received chat_completions raw request body: {body}")
+    print("Entering chat_completions")
+    try:
+        raw_body = await request.body()
+        print(f"Received raw request body: {raw_body.decode()}")
+        body = json.loads(raw_body)
+        print(f"Parsed request body: {body}")
 
-    # Handle LMstudio initialize method call
-    if "jsonrpc" in body:
-        if body.get("method") == "initialize":
-            protocol_version = body.get("params", {}).get("protocolVersion", "1.0.0")
-            return JSONResponse(
-                content={
-                    "jsonrpc": "2.0",
-                    "id": body.get("id"),
-                    "result": {
-                        "protocolVersion": protocol_version,
-                        "capabilities": {
-                            "textDocument": {
-                                "completion": {
-                                    "completionItem": {
-                                        "snippetSupport": True
+        # Handle MCP (LMStudio) specific methods
+        if "jsonrpc" in body:
+            method = body.get("method")
+            if method == "initialize":
+                protocol_version = body.get("params", {}).get("protocolVersion", "1.0.0")
+                return JSONResponse(
+                    content={
+                        "jsonrpc": "2.0",
+                        "id": body.get("id"),
+                        "result": {
+                            "protocolVersion": protocol_version,
+                            "serverInfo": {
+                                "name": "MCP Server",
+                                "version": "1.1.0",
+                                "protocolVersion": protocol_version,
+                            },
+                            "capabilities": {
+                                "textDocument": {
+                                    "completion": {
+                                        "completionItem": {
+                                            "snippetSupport": True
+                                        }
                                     }
                                 }
                             }
                         },
-                        "serverInfo": {
-                            "name": "MCP Server",
-                            "version": "1.1.0",
-                            "protocolVersion": protocol_version,
-                        },
-                    },
-                }
-            )
-        elif body.get("method") == "tools/list":
-            tool_definitions = []
-            # Add tools from the local 'tools' module
-            for tool_name, tool_func in tools.tools.items():
-                signature = inspect.signature(tool_func)
-                parameters = signature.parameters
-                
-                input_properties = {}
-                required_params = []
-                for name, param in parameters.items():
-                    if name == "db":
-                        continue
-                    input_properties[name] = {"type": "string"}
-                    if param.default == inspect.Parameter.empty:
-                        required_params.append(name)
-
-                tool_definitions.append({
-                    "name": tool_name,
-                    "title": tool_name.replace("_", " ").title(),
-                    "description": tool_func.__doc__.strip() if tool_func.__doc__ else "",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": input_properties,
-                        "required": required_params,
-                    },
-                    "outputSchema": {"type": "object", "properties": {}},
-                    "annotations": {},
-                })
-            
-            # Add ServiceNow tools
-            for tool_name in SERVICENOW_TOOLS.keys():
-                tool_definitions.append({
-                    "name": tool_name,
-                    "title": tool_name.replace("_", " ").title(),
-                    "description": f"ServiceNow tool: {tool_name}", # Placeholder description
-                    "inputSchema": {"type": "object", "properties": {}, "required": []}, # Placeholder schema
-                    "outputSchema": {"type": "object", "properties": {}},
-                    "annotations": {},
-                })
-
-            # Add GLPI tools
-            for tool_name in GLPI_TOOLS.keys():
-                tool_definitions.append({
-                    "name": tool_name,
-                    "title": tool_name.replace("_", " ").title(),
-                    "description": f"GLPI tool: {tool_name}", # Placeholder description
-                    "inputSchema": {"type": "object", "properties": {}, "required": []}, # Placeholder schema
-                    "outputSchema": {"type": "object", "properties": {}},
-                    "annotations": {},
-                })
-
-            return JSONResponse(
-                content={
-                    "jsonrpc": "2.0",
-                    "id": body.get("id"),
-                    "result": {"tools": tool_definitions},
-                }
-            )
-        elif body.get("method") == "tools/list":
-            tool_definitions = []
-            # Add tools from the local 'tools' module
-            for tool_name, tool_func in tools.tools.items():
-                signature = inspect.signature(tool_func)
-                parameters = signature.parameters
-                
-                input_properties = {}
-                required_params = []
-                for name, param in parameters.items():
-                    if name == "db":
-                        continue
-                    input_properties[name] = {"type": "string"}
-                    if param.default == inspect.Parameter.empty:
-                        required_params.append(name)
-
-                tool_definitions.append({
-                    "name": tool_name,
-                    "title": tool_name.replace("_", " ").title(),
-                    "description": tool_func.__doc__.strip() if tool_func.__doc__ else "",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": input_properties,
-                        "required": required_params,
-                    },
-                    "outputSchema": {"type": "object", "properties": {}},
-                    "annotations": {},
-                })
-            
-            # Add ServiceNow tools
-            for tool_name in SERVICENOW_TOOLS.keys():
-                tool_definitions.append({
-                    "name": tool_name,
-                    "title": tool_name.replace("_", " ").title(),
-                    "description": f"ServiceNow tool: {tool_name}", # Placeholder description
-                    "inputSchema": {"type": "object", "properties": {}, "required": []}, # Placeholder schema
-                    "outputSchema": {"type": "object", "properties": {}},
-                    "annotations": {},
-                })
-
-            # Add GLPI tools
-            for tool_name in GLPI_TOOLS.keys():
-                tool_definitions.append({
-                    "name": tool_name,
-                    "title": tool_name.replace("_", " ").title(),
-                    "description": f"GLPI tool: {tool_name}", # Placeholder description
-                    "inputSchema": {"type": "object", "properties": {}, "required": []}, # Placeholder schema
-                    "outputSchema": {"type": "object", "properties": {}},
-                    "annotations": {},
-                })
-
-            return JSONResponse(
-                content={
-                    "jsonrpc": "2.0",
-                    "id": body.get("id"),
-                    "result": {"tools": tool_definitions},
-                }
-            )
-        else:
-            return JSONResponse(content={"jsonrpc": "2.0", "result": None, "id": body.get("id")})
-
-    # Process as ChatCompletionRequest
-    chat_request = ChatCompletionRequest(**body)
-    last_message = chat_request.messages[-1]
-    
-    tool_name = None
-    tool_args = {}
-
-    if last_message.tool_calls:
-        # If tool_calls are present, use the first one
-        tool_call_obj = last_message.tool_calls[0]
-        tool_name = tool_call_obj.function.name
-        tool_args = json.loads(tool_call_obj.function.arguments)
-        print(f"Extracted tool call from tool_calls: {tool_name} with args: {tool_args}")
-    elif last_message.content:
-        # Fallback to parsing content if tool_calls are not present
-        try:
-            tool_call = json.loads(last_message.content)
-            tool_name = tool_call["name"]
-            tool_args_str = tool_call.get("arguments", "{}")
-            if isinstance(tool_args_str, str):
-                tool_args = json.loads(tool_args_str)
+                    }
+                )
+            elif method == "tools/list":
+                return JSONResponse(
+                    content={
+                        "jsonrpc": "2.0",
+                        "id": body.get("id"),
+                        "result": {"tools": get_tool_definitions()},
+                    }
+                )
+            elif method == "tools/call":
+                tool_name = body["params"]["name"]
+                tool_args = body["params"].get("arguments", {})
+                print(f"Calling execute_tool with tool_name: {tool_name}")
+                tool_response = await execute_tool(db, tool_name, tool_args)
+                print(f"Received tool_response: {tool_response}")
+                return JSONResponse(
+                    content={
+                        "jsonrpc": "2.0",
+                        "id": body.get("id"),
+                        "result": tool_response,
+                    }
+                )
             else:
-                tool_args = tool_args_str
-            print(f"Extracted tool call from content: {tool_name} with args: {tool_args}")
-        except json.JSONDecodeError:
-            # If content is not a valid JSON, it's a regular chat message
+                return JSONResponse(content={"jsonrpc": "2.0", "result": None, "id": body.get("id")})
+
+        # Process as a standard ChatCompletionRequest
+        print("Processing as ChatCompletionRequest")
+        chat_request = ChatCompletionRequest(**body)
+        last_message = chat_request.messages[-1]
+
+        tool_name = None
+        tool_args = {}
+
+        if chat_request.tool_calls:
+            print("Extracting tool call from tool_calls")
+            tool_call_obj = chat_request.tool_calls[0]
+            tool_name = tool_call_obj.function.name
+            tool_args = json.loads(tool_call_obj.function.arguments)
+            print(f"Extracted tool call from tool_calls: {tool_name} with args: {tool_args}")
+        elif last_message.content:
+            print("Extracting tool call from content")
+            try:
+                tool_call = json.loads(last_message.content)
+                tool_name = tool_call["name"]
+                tool_args_str = tool_call.get("arguments", "{}")
+                tool_args = json.loads(tool_args_str) if isinstance(tool_args_str, str) else tool_args_str
+                print(f"Extracted tool call from content: {tool_name} with args: {tool_args}")
+            except json.JSONDecodeError:
+                # Not a tool call, treat as a regular message (or handle as error)
+                print("Could not decode JSON from content")
+                pass
+
+        if not tool_name:
+            print("Tool name not found")
+            # Handle cases where no tool call is identified
             response_message = ChatMessage(
                 role="assistant",
-                content="I'm sorry, I can only process tool calls or regular chat messages. Your last message was not a valid tool call.",
+                content="I'm sorry, I couldn't identify a tool to call. Please try again.",
             )
-            return ChatCompletionResponse(
-                id=str(uuid.uuid4()),
-                object="chat.completion",
-                created=int(time.time()),
-                model=chat_request.model,
-                choices=[
-                    ChatCompletionChoice(
-                        index=0,
-                        message=response_message,
-                        finish_reason="stop",
-                    )
-                ],
-            )
-    else:
-        response_message = ChatMessage(
-            role="assistant",
-            content="I'm sorry, I couldn't understand your request. Please provide a valid tool call or a chat message.",
-        )
-        return ChatCompletionResponse(
-            id=str(uuid.uuid4()),
-            object="chat.completion",
-            created=int(time.time()),
-            model=chat_request.model,
-            choices=[
-                ChatCompletionChoice(
-                    index=0,
-                    message=response_message,
-                    finish_reason="stop",
-                )
-            ],
-        )
-
-    try:
-        tool_response = None
-
-        if tool_name in SERVICENOW_TOOLS:
-
-            
-            print(f"Calling ServiceNow microservice for tool: {tool_name}")
-            async with httpx.AsyncClient() as client:
-                endpoint = SERVICENOW_TOOLS[tool_name]
-                request_url = f"{SERVICENOW_SERVICE_URL}{endpoint}"
-                print(f"ServiceNow microservice request URL: {request_url}")
-                if tool_name in ["get_report_recently_resolved", "get_report_open_by_priority", "get_report_by_assignment_group"]:
-                    print(f"Making GET request to {request_url}")
-                    response = await client.get(request_url, params=tool_args)
-                else:
-                    print(f"Making POST request to {request_url} with data: {tool_args}")
-                    response = await client.post(request_url, json=tool_args)
-                response.raise_for_status()
-                tool_response = response.json()
-                print(f"ServiceNow microservice response: {tool_response}")
-        elif tool_name in GLPI_TOOLS:
-
-            
-            print(f"Calling GLPI microservice for tool: {tool_name}")
-            async with httpx.AsyncClient() as client:
-                endpoint = GLPI_TOOLS[tool_name]
-                # All GLPI tools are GET requests for now, except full_asset_dump which is POST
-                if tool_name == "get_glpi_full_asset_dump":
-                    response = await client.post(f"{GLPI_SERVICE_URL}{endpoint}", json=tool_args)
-                else:
-                    response = await client.get(f"{GLPI_SERVICE_URL}{endpoint}")
-                response.raise_for_status()
-                tool_response = response.json()
         else:
-            # Call the local tool
-            tool_response = await tools.call_tool(db, tool_name, tool_args)
+            print(f"Calling execute_tool with tool_name: {tool_name}")
+            tool_response = await execute_tool(db, tool_name, tool_args)
+            print(f"Received tool_response: {tool_response}")
+            response_message = ChatMessage(role="assistant", content=tool_response)
 
-        if isinstance(tool_response, dict):
-            tool_response = json.dumps(tool_response, indent=2)
-
-        response_message = ChatMessage(
-            role="assistant",
-            content=tool_response,
-        )
-    except json.JSONDecodeError:
-        response_message = ChatMessage(
-            role="assistant",
-            content="Invalid JSON format in tool call.",
-        )
-    except KeyError as e:
-        response_message = ChatMessage(
-            role="assistant",
-            content=f"Missing key in tool call: {e}",
-        )
-    except httpx.RequestError as e:
-        print(f"HTTP request error to microservice: {e}")
-        response_message = ChatMessage(
-            role="assistant",
-            content=f"Error communicating with microservice: {e}",
-        )
-    except httpx.HTTPStatusError as e:
-        print(f"HTTP status error from microservice: {e.response.status_code} - {e.response.text}")
-        response_message = ChatMessage(
-            role="assistant",
-            content=f"Microservice returned an error: {e.response.status_code} - {e.response.text}",
-        )
     except Exception as e:
-        print(f"Error processing tool call: {e}")
+        print(f"Error in chat_completions: {e}")
         response_message = ChatMessage(
             role="assistant",
             content=f"An unexpected error occurred: {e}",
@@ -361,3 +274,54 @@ async def chat_completions(
             )
         ],
     )
+
+
+async def execute_tool(db: Session, tool_name: str, tool_args: dict):
+    """Executes a tool either locally or by calling a microservice."""
+    print(f"Executing tool: {tool_name} with args: {tool_args}")
+    try:
+        cleaned_tool_args = {k: v for k, v in tool_args.items() if k not in ["method", "result", "id"]}
+
+        if tool_name in SERVICENOW_TOOLS:
+            return await call_microservice(
+                settings.SERVICENOW_SERVICE_URL,
+                SERVICENOW_TOOLS[tool_name]["endpoint"],
+                cleaned_tool_args,
+            )
+        elif tool_name in GLPI_TOOLS:
+            return await call_microservice(
+                settings.GLPI_SERVICE_URL,
+                GLPI_TOOLS[tool_name]["endpoint"],
+                cleaned_tool_args,
+            )
+        else:
+            # Call a local tool
+            tool_response = await tools.call_tool(db, tool_name, cleaned_tool_args)
+            return json.dumps(tool_response, indent=2) if isinstance(tool_response, dict) else tool_response
+
+    except Exception as e:
+        print(f"Error executing tool '{tool_name}': {e}")
+        return f"An error occurred while executing the tool: {e}"
+
+
+async def call_microservice(base_url: str, endpoint: str, args: dict):
+    """Generic function to call a microservice endpoint."""
+    request_url = f"{base_url}{endpoint}"
+    print(f"Calling microservice at: {request_url} with args: {args}")
+    async with httpx.AsyncClient() as client:
+        try:
+            # Determine if it's a GET or POST request based on the tool
+            if "create" in endpoint or "fetch" in endpoint:
+                response = await client.post(request_url, json=args)
+            else:
+                response = await client.get(request_url, params=args)
+            
+            response.raise_for_status()
+            print(f"Microservice raw response: {response.text}")
+            return response.json()
+        except httpx.RequestError as e:
+            print(f"HTTP request error to microservice: {e}")
+            return f"Error communicating with microservice: {e}"
+        except httpx.HTTPStatusError as e:
+            print(f"HTTP status error from microservice: {e.response.status_code} - {e.response.text}")
+            return f"Microservice returned an error: {e.response.status_code} - {e.response.text}"

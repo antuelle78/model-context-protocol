@@ -18,8 +18,7 @@ class TicketUpdate(TicketBase):
 class Ticket(TicketBase):
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 # New schemas for ticket creation
 class TicketCreateRequest(BaseModel):
@@ -46,8 +45,7 @@ class UserResponse(BaseModel):
     username: str
     email: EmailStr
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 # OpenAI compatible schemas
 class ChatMessage(BaseModel):

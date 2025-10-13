@@ -18,8 +18,7 @@ class TicketUpdate(TicketBase):
 class Ticket(TicketBase):
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 # New schemas for ticket creation
 class TicketCreateRequest(BaseModel):
@@ -46,18 +45,19 @@ class UserResponse(BaseModel):
     username: str
     email: EmailStr
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 # OpenAI compatible schemas
 class ChatMessage(BaseModel):
     role: str
     content: str
+    tool_calls: Optional[List[Dict[str, Any]]] = None
 
 class ChatCompletionRequest(BaseModel):
     messages: List[ChatMessage]
     model: str
     stream: bool = False
+    tool_calls: Optional[List[Dict[str, Any]]] = None
 
 class ChatCompletionChoice(BaseModel):
     index: int
@@ -86,6 +86,22 @@ class CreateNewTicketArgs(BaseModel):
 class GetGlpiFullAssetDumpArgs(BaseModel):
     itemtype: str
 
+# Schemas for ServiceNow tool arguments
+class GetReportOpenByPriorityArgs(BaseModel):
+    priority: str = Field(..., description="The priority of the tickets to include in the report.")
+
+class GetReportByAssignmentGroupArgs(BaseModel):
+    assignment_group: str = Field(..., description="The assignment group to filter the report by.")
+
+class CreateNewTicketServiceNowArgs(BaseModel):
+    short_description: str = Field(..., description="A short description of the ticket.")
+    assignment_group: str = Field(..., description="The group to assign the ticket to.")
+    priority: str = Field(..., description="The priority of the ticket.")
+
+# Schemas for GLPI tool arguments
+class GetGlpiFullAssetDumpArgs(BaseModel):
+    itemtype: str = Field(..., description="The type of asset to dump (e.g., 'Computer', 'Monitor').")
+
 # Microservice Tool Input Schemas
 class ServiceNowToolInput(BaseModel):
     servicenow_base_url: Optional[str] = Field(None, description="Base URL for the ServiceNow API.")
@@ -97,6 +113,12 @@ class GLPIToolInput(BaseModel):
     glpi_app_token: Optional[str] = Field(None, description="Application token for GLPI API authentication.")
     glpi_access_token: Optional[str] = Field(None, description="Access token for GLPI API authentication.")
 
-class FetchAllTicketsInput(ServiceNowToolInput, GLPIToolInput):
+class FetchAllTicketsInput(BaseModel):
     service_name: str = Field(..., description="The name of the service to fetch tickets from (e.g., 'glpi', 'servicenow').")
+    servicenow_base_url: Optional[str] = Field(None, description="Base URL for the ServiceNow API.")
+    servicenow_username: Optional[str] = Field(None, description="Username for ServiceNow API authentication.")
+    servicenow_password: Optional[str] = Field(None, description="Password for ServiceNow API authentication.")
+    glpi_base_url: Optional[str] = Field(None, description="Base URL for the GLPI API.")
+    glpi_app_token: Optional[str] = Field(None, description="Application token for GLPI API authentication.")
+    glpi_access_token: Optional[str] = Field(None, description="Access token for GLPI API authentication.")
 

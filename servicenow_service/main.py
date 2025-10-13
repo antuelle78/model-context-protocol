@@ -61,12 +61,12 @@ async def create_new_ticket_endpoint(args: CreateNewTicketArgs, db: Session = De
     created_ticket_message = await services.create_new_ticket(db, args)
     return {"message": created_ticket_message}
 
-@app.post("/servicenow/tickets/fetch")
-async def fetch_all_tickets_endpoint(db: Session = Depends(get_db)):
+@app.post("/servicenow/tickets/fetch_all_servicenow_tickets")
+async def fetch_all_servicenow_tickets_endpoint(db: Session = Depends(get_db)):
     """
     Fetches the latest tickets from ServiceNow and stores them in the database.
     """
-    print("Received request for /servicenow/tickets/fetch")
+    print("Received request for /servicenow/tickets/fetch_all_servicenow_tickets")
     result = await services.fetch_and_store_tickets(db)
-    print(f"Returning from /servicenow/tickets/fetch: {result}")
+    print(f"Returning from /servicenow/tickets/fetch_all_servicenow_tickets: {result}")
     return result

@@ -53,11 +53,17 @@ class Tools:
         except json.JSONDecodeError as e:
             return f"Error decoding JSON from gateway for tool '{tool_name}': {str(e)}"
 
-    def fetch_all_tickets(self) -> str:
+    def fetch_all_servicenow_tickets(self) -> str:
         """
-        Fetches the latest tickets from the ITSM and stores them in the database.
+        Fetches the latest tickets from ServiceNow and stores them in the database.
         """
-        return self._call_gateway_tool("fetch_all_tickets")
+        return self._call_gateway_tool("fetch_all_servicenow_tickets")
+
+    def fetch_all_glpi_inventory(self) -> str:
+        """
+        Fetches all inventory from GLPI.
+        """
+        return self._call_gateway_tool("fetch_all_glpi_inventory")
 
     def get_report_open_by_priority(self, priority: str = Field(..., description="The priority of the tickets to include in the report.")) -> str:
         """

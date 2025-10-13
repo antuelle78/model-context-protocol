@@ -58,8 +58,8 @@ async def get_glpi_os_distribution_endpoint(db: Session = Depends(get_db)):
         report_lines.append(f"- {os_name}: {count}")
     return {"report": "\n".join(report_lines)}
 
-@app.post("/glpi/full_asset_dump")
-async def get_glpi_full_asset_dump_endpoint(args: GetGlpiFullAssetDumpArgs, db: Session = Depends(get_db)):
+@app.get("/glpi/full_asset_dump")
+async def get_glpi_full_asset_dump_endpoint(args: GetGlpiFullAssetDumpArgs = Depends(), db: Session = Depends(get_db)):
     """
     Returns a complete dump of all assets of a specified type from GLPI.
     """
@@ -67,4 +67,12 @@ async def get_glpi_full_asset_dump_endpoint(args: GetGlpiFullAssetDumpArgs, db: 
     if not assets:
         return {"assets": [], "message": f"No assets found for type {args.itemtype} in GLPI."}
     return {"assets": assets}
+
+@app.get("/glpi/inventory")
+async def fetch_all_glpi_inventory_endpoint(db: Session = Depends(get_db)):
+    """
+    Fetches all inventory from GLPI.
+    """
+    inventory = glpi_service.fetch_and_store_inventory()
+    return {"inventory": inventory}
 

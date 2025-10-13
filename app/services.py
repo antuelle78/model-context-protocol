@@ -1,8 +1,10 @@
+from typing import Any, Dict
 import httpx
 from sqlalchemy.orm import Session
 from app.models import Ticket
 from app.schemas import TicketCreateRequest, TicketCreationResponse
 from app.config import settings
+from servicenow_service.services import fetch_and_store_tickets as servicenow_fetch_and_store_tickets
 
 async def fetch_and_store_tickets(
     service_name: str,
@@ -12,7 +14,7 @@ async def fetch_and_store_tickets(
     servicenow_base_url: str = None,
     servicenow_username: str = None,
     servicenow_password: str = None
-) -> List[Dict[str, Any]]:
+) -> list[Dict[str, Any]]:
     """
     Fetches tickets from the specified service (GLPI or ServiceNow) and stores them in the database.
     """
@@ -35,20 +37,8 @@ async def fetch_and_store_tickets(
     elif service_name.lower() == "servicenow":
         if not servicenow_base_url or not servicenow_username or not servicenow_password:
             raise ValueError("ServiceNow configuration (base_url, username, password) must be provided.")
-        servicenow_tools = ServiceNowTools(servicenow_base_url, servicenow_username, servicenow_password)
-        tickets_data = await servicenow_tools.get_all_tickets()
-    else:
-        raise ValueError(f"Unsupported service: {service_name}")
-
-    stored_tickets = []
-    for ticket_data in tickets:
-        ticket = TicketCreate(**ticket_data)
-        db_ticket = Ticket(**ticket.dict())
-        db.add(db_ticket)
-        db.commit()
-        db.refresh(db_ticket)
-        stored_tickets.append(db_ticket)
-    return stored_tickets
+        await servicenow_fetch_and_store_tickets(db)
+        return {"message": "ServiceNow tickets fetched and stored successfully."}
 
 async def create_ticket(db: Session, ticket_data: TicketCreateRequest) -> TicketCreationResponse:
     auth = (settings.SERVICENOW_USERNAME, settings.SERVICENOW_PASSWORD)

@@ -28,4 +28,9 @@ class GlpiService:
         # The glpi-api's search method should handle pagination automatically
         return self.glpi.search(itemtype, criteria=[{"expand_dropdowns": True}])
 
+    def fetch_and_store_inventory(self) -> list:
+        # For now, just fetch all computers and return them.
+        # In a real-world scenario, you would store this in a database.
+        return self.glpi.search("Computer")
+
 glpi_service = GlpiService()

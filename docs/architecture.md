@@ -1,11 +1,29 @@
 # Project Architecture
 
-This flowchart depicts the interaction between the different elements of the project.
+This diagram illustrates the architecture of the project.
 
-```mermaid
-graph TD
-    A[User] --> B(API);
-    B --> C{Services};
-    C --> D[Database];
-    E[Docker] --> B;
+```
++------------------------+
+| LM Studio / Open-webui |
++-----------+------------+
+            |
+            v
++-----------+------------+
+|        Gateway         |
++-----------+------------+
+            |
++-----------v------------+
+|      Microservices     |
+| (ServiceNow, GLPI)     |
++-----------+------------+
+            |
++-----------v------------+
+|       Mock APIs        |
+| (ServiceNow, GLPI)     |
++-----------+------------+
+            |
++-----------v------------+
+|        Database        |
+|        (SQLite)        |
++------------------------+
 ```

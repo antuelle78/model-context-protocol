@@ -7,9 +7,4 @@ class Settings(BaseSettings):
     SERVICENOW_USERNAME: str
     SERVICENOW_PASSWORD: str
 
-    GLPI_API_URL: str
-    GLPI_APP_TOKEN: str
-    GLPI_USERNAME: str
-    GLPI_PASSWORD: str
-
 settings = Settings()
