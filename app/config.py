@@ -1,20 +1,23 @@
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings
+from typing import List
+
+class ApiConfig(BaseModel):
+    name: str
+    base_url: str
+    openapi_url: str
+    auth_type: str
+    auth_key: str = None
+    auth_user: str = None
+    auth_pass: str = None
 
 class Settings(BaseSettings):
     DB_URL: str = "sqlite:///./test.db"
-    ALLOWED_TABLES: list[str] = ["news", "supplier"]
-    SERVICENOW_SERVICE_URL: str = "http://localhost:8001"
-    SERVICE_MANAGER_API_URL: str
-    SERVICENOW_USERNAME: str
-    SERVICENOW_PASSWORD: str
+    OPENWEATHER_API_KEY: str = "5ae241049876bed269426796221a6002"
+    APIs: List[ApiConfig] = []
 
-    GLPI_SERVICE_URL: str = "http://localhost:8002"
-    GLPI_API_URL: str
-    GLPI_APP_TOKEN: str
-    GLPI_ACCESS_TOKEN: str
-    GLPI_USERNAME: str
-    GLPI_PASSWORD: str
-
-    FILE_SERVICE_URL: str = "http://file_service:8003"
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
 settings = Settings()
