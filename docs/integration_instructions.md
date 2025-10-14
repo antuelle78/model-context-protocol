@@ -13,23 +13,27 @@ To create a custom tool, you need to create a Python file in the `tools` directo
 
 Here is the code for the custom tool:
 
-> ```python
-> import os
-> import requests
-> from pydantic import BaseModel, Field
->
-import os
-import requests
+```python
+"""
+title: 'MCP Bridge'
+author: 'MCP Server'
+description: 'A bridge to connect to a generic MCP server for executing dynamic tools.'
+version: '1.0.0'
+requirements: httpx
+"""
+
+import httpx
 import json
-from pydantic import BaseModel, Field
 
 class Tools:
     def __init__(self):
-        self.gateway_url = "http://192.168.1.9:8000/api/v1/mcp" # Gateway endpoint
+        # IMPORTANT: Replace with the actual IP of the machine running the MCP server
+        self.mcp_server_url = "http://10.2.0.150:30080/api/v1/mcp"
+        self.headers = {"Content-Type": "application/json"}
 
-    def _call_gateway_tool(self, tool_name: str, **kwargs) -> str:
-        """Helper to call tools via the gateway."""
-        tool_call_payload = {
+    def _call_mcp_tool(self, tool_name: str, **kwargs) -> str:
+        """Helper function to call a tool on the MCP server."""
+        payload = {
             "jsonrpc": "2.0",
             "method": "tools/call",
             "params": {
@@ -39,33 +43,51 @@ class Tools:
             "id": "1",
         }
         try:
-            response = requests.post(self.gateway_url, json=tool_call_payload)
-            response.raise_for_status()
-            return response.json().get("result", {})
-        except requests.RequestException as e:
-            return f"Error calling tool '{tool_name}': {str(e)}"
-        except KeyError as e:
-            return f"Error parsing gateway response for tool '{tool_name}': Missing key {e}"
-        except json.JSONDecodeError as e:
-            return f"Error decoding JSON from gateway for tool '{tool_name}': {str(e)}"
+            with httpx.Client() as client:
+                response = client.post(self.mcp_server_url, json=payload, headers=self.headers)
+                response.raise_for_status()
+                result = response.json().get("result", {})
+                return json.dumps(result, indent=2)
+        except httpx.HTTPStatusError as e:
+            return f"Error: The tool server returned a status of {e.response.status_code}. Response: {e.response.text}"
+        except Exception as e:
+            return f"An unexpected error occurred: {str(e)}"
 
-    def get_stock_price(self, ticker: str = Field(..., description="The stock ticker symbol, e.g., 'AAPL' for Apple.")) -> str:
+    async def file_fetcher(self, path: str) -> str:
+        """
+        Reads all files from a given directory on the network share.
+
+        :param path: The path to the directory on the network share, relative to the root.
+        :return: A JSON string containing the file contents and their encodings.
+        """
+        return self._call_mcp_tool("file_fetcher", path=path)
+
+    async def openweather_get_hourly_forecast(self, lat: float, lon: float) -> str:
+        """
+        Gets the hourly weather forecast for a given location using the OpenWeather API.
+
+        :param lat: The latitude of the location.
+        :param lon: The longitude of the location.
+        :return: A JSON string containing the hourly weather forecast.
+        """
+        return self._call_mcp_tool("openweather_get_hourly_forecast", lat=lat, lon=lon)
+
+    async def get_stock_price(self, ticker: str) -> str:
         """
         Fetches the current stock price for a given ticker symbol.
-        """
-        return self._call_gateway_tool("get_stock_price", ticker=ticker)
 
-    def file_fetcher(self, path: str = Field(..., description="The absolute path to the directory to read.")) -> str:
+        :param ticker: The stock ticker symbol, e.g., 'AAPL' for Apple.
+        :return: A JSON string containing the stock price.
         """
-        Reads all files from a given directory and returns their content.
-        """
-        return self._call_gateway_tool("file_fetcher", path=path)
+        return self._call_mcp_tool("get_stock_price", ticker=ticker)
 
-    def get_weather_forecast(self, lat: float = Field(..., description="The latitude of the location."), lon: float = Field(..., description="The longitude of the location.")) -> str:
+    async def glpi_get_inventory_details(self) -> str:
         """
-        Fetches the current weather for a specified location.
+        Fetches a detailed list of all inventory items from GLPI.
+
+        :return: A JSON string containing the inventory details.
         """
-        return self._call_gateway_tool("openweather_get_hourly_forecast", lat=lat, lon=lon)
+        return self._call_mcp_tool("glpi_get_inventory_details")
 ```
 
 ### How to use the tool
@@ -77,6 +99,7 @@ For example, you can ask the LLM:
 - "What is the stock price of GOOGL?"
 - "Read the files in the /data/network_share directory."
 - "What is the weather forecast for latitude 40.7128 and longitude -74.0060?"
+- "Get the inventory details from GLPI."
 
 The LLM will then call the corresponding method of the `Tools` class and return the result.
 

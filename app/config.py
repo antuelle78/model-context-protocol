@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     ALPHAVANTAGE_API_KEY: str = "3TQ35HGSYS0MOMYX"
     APIs: List[ApiConfig] = []
 
+    GLPI_API_URL: str = "http://mock_glpi_api:8081/glpi/apirest.php"
+    GLPI_APP_TOKEN: str = "dummy-app-token"
+    GLPI_USERNAME: str = "dummy-user"
+    GLPI_PASSWORD: str = "dummy-password"
+    GLPI_ACCESS_TOKEN: str = "dummy-access-token"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

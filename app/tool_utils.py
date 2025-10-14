@@ -107,6 +107,23 @@ async def get_tool_definitions():
         }
     ]
     tool_definitions.extend(weather_tools)
+
+    glpi_tools = [
+        {
+            "name": "glpi_get_inventory_details",
+            "title": "Get GLPI Inventory Details",
+            "description": "Fetches a detailed list of all inventory items from GLPI.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+            },
+            "outputSchema": {
+                "type": "string"
+            },
+            "annotations": {},
+        }
+    ]
+    tool_definitions.extend(glpi_tools)
     
     return tool_definitions
 
@@ -120,6 +137,10 @@ async def execute_tool(db: Session, tool_name: str, tool_args: dict):
             return services.read_directory(**tool_args)
         elif tool_name == "openweather_get_hourly_forecast":
             return await services.get_weather_forecast(**tool_args)
+        elif tool_name == "glpi_get_inventory_details":
+            from glpi_service.glpi_api_service import GlpiService
+            glpi_service = GlpiService()
+            return glpi_service.get_inventory_details()
 
         # Tools from modules
         tool_definitions = await get_tool_definitions()

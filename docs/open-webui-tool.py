@@ -12,7 +12,7 @@ import json
 class Tools:
     def __init__(self):
         # IMPORTANT: Replace with the actual IP of the machine running the MCP server
-        self.mcp_server_url = "http://<YOUR_HOST_IP>:8000/api/v1/mcp"
+        self.mcp_server_url = "http://10.2.0.150:30080/api/v1/mcp"
         self.headers = {"Content-Type": "application/json"}
 
     def _call_mcp_tool(self, tool_name: str, **kwargs) -> str:
@@ -64,6 +64,14 @@ class Tools:
         :return: A JSON string containing the stock price.
         """
         return self._call_mcp_tool("get_stock_price", ticker=ticker)
+
+    async def glpi_get_inventory_details(self) -> str:
+        """
+        Fetches a detailed list of all inventory items from GLPI.
+
+        :return: A JSON string containing the inventory details.
+        """
+        return self._call_mcp_tool("glpi_get_inventory_details")
 
     # You can add more static definitions here for other dynamically generated tools
     # that you want to explicitly expose to Open-WebUI.

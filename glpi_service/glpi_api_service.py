@@ -11,7 +11,6 @@ class GlpiService:
                 apptoken=settings.GLPI_APP_TOKEN,
                 auth=(settings.GLPI_USERNAME, settings.GLPI_PASSWORD)
             )
-            self.glpi.init_session()
         except Exception as e:
             self.glpi = None
             print(f"Failed to initialize GLPI API: {e}")
@@ -46,4 +45,6 @@ class GlpiService:
         # In a real-world scenario, you would store this in a database.
         return self.glpi.search("Computer")
 
-glpi_service = GlpiService()
+    def get_inventory_details(self) -> list:
+        self._check_init()
+        return self.get_assets("AllAssets")

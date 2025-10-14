@@ -79,6 +79,8 @@ def search_items(itemtype):
         return jsonify({"data": computers})
     elif itemtype.lower() == "monitor":
         return jsonify({"data": monitors})
+    elif itemtype.lower() == "allassets":
+        return jsonify({"data": computers + monitors})
     else:
         return jsonify({"data": []})
 
