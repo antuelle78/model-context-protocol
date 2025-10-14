@@ -48,12 +48,6 @@ Calls a specific tool with the given arguments.
 
 Returns a JSON object containing the result of the tool call.
 
-## Microservice Architecture
-
-The MCP Server now operates with a microservice architecture. The main application acts as a gateway, routing tool calls to specialized microservices (e.g., ServiceNow, GLPI). These microservices are dynamically started and stopped as needed to optimize resource usage.
-
-Tool calls are made via the `/api/v1/chat/completions` endpoint, where the gateway interprets the tool request and forwards it to the appropriate microservice.
-
 ## Server Base URL
 
 All endpoints are prefixed with `/api/v1`.

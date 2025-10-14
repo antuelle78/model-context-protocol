@@ -12,36 +12,9 @@ services:
     container_name: mcp-server
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - SERVICE_MANAGER_API_URL=http://mock_servicenow_api:5000
-      - SERVICENOW_USERNAME=${SERVICENOW_USERNAME}
-      - SERVICENOW_PASSWORD=${SERVICENOW_PASSWORD}
-      - GLPI_API_URL=http://mock_glpi_api:8081/glpi/apirest.php
-      - GLPI_APP_TOKEN=${GLPI_APP_TOKEN}
-      - GLPI_ACCESS_TOKEN=${GLPI_ACCESS_TOKEN}
-      - GLPI_USERNAME=${GLPI_USERNAME}
-      - GLPI_PASSWORD=${GLPI_PASSWORD}
-    networks:
-      - mcp-net
-    depends_on:
-      - mock_servicenow_api
-      - mock_glpi_api
-
-  mock_servicenow_api:
-    build:
-      context: ./mock_servicenow_api
-    container_name: model-context-protocol-mock_servicenow_api-1
-    ports:
-      - "5000:5000"
-    networks:
-      - mcp-net
-
-  mock_glpi_api:
-    build:
-      context: ./mock_glpi_api
-    container_name: model-context-protocol-mock_glpi_api-1
-    ports:
-      - "8081:8081"
+    volumes:
+      - ./network_share:/data/network_share
+    env_file:
+      - .env
     networks:
       - mcp-net

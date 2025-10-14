@@ -1,0 +1,7 @@
+{
+  "version": "1.0",
+  "parameters": {
+    "enabled": true,
+    "threshold": 0.95
+  }
+}

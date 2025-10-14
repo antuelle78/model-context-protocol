@@ -14,6 +14,7 @@ class ApiConfig(BaseModel):
 class Settings(BaseSettings):
     DB_URL: str = "sqlite:///./test.db"
     OPENWEATHER_API_KEY: str = "5ae241049876bed269426796221a6002"
+    ALPHAVANTAGE_API_KEY: str = "3TQ35HGSYS0MOMYX"
     APIs: List[ApiConfig] = []
 
     class Config:

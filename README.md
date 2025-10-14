@@ -69,19 +69,30 @@ A flowchart depicting the project architecture can be found in the [architecture
     uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
     ```
 
-## Running with Docker
+## Configuration
 
-1.  **Create a `.env` file** in the root of the project. You can use the `.env.example` file as a template:
+The application is configured using a `.env` file in the project root. The `APIs` variable is a JSON string that defines the APIs to connect to.
 
-    ```bash
-    cp .env.example .env
-    ```
-
-2.  **Build and run the container:**
-
-    ```bash
-    docker-compose up -d --build
-    ```
+```
+DB_URL="sqlite:///./test.db"
+APIs='[
+  {
+    "name": "servicenow",
+    "base_url": "https://your-instance.service-now.com",
+    "openapi_url": "https://your-instance.service-now.com/api/now/api-doc",
+    "auth_type": "basic",
+    "auth_user": "your-username",
+    "auth_pass": "your-password"
+  },
+  {
+    "name": "glpi",
+    "base_url": "https://your-glpi-instance.com/apirest.php",
+    "openapi_url": "https://your-glpi-instance.com/apirest.php/openapi.json",
+    "auth_type": "bearer",
+    "auth_key": "your-glpi-user-token"
+  }
+]'
+```
 
 ## Running the tests
 
@@ -97,21 +108,31 @@ A flowchart depicting the project architecture can be found in the [architecture
     pytest
     ```
 
-## LM Studio Integration
+## Network Share Integration
 
-To integrate with LM Studio, you need to provide an `mcp.json` file that describes the MCP server and its tools.
+To allow the `file_fetcher` tool to access files from a network share, you need to mount the share to a local directory and then mount that directory into the `mcp-server` container.
 
-1.  **Create an `mcp.json` file** in the LM Studio plugins directory (or a location where LM Studio can find it) with the following content:
-
-    ```json
-    {
-      "mcpServers": {
-        "MCP Server": {
-          "url": "http://localhost:8000/api/v1/mcp",
-
+1.  **Mount your network share** to a directory on your host machine. For example:
+    ```bash
+    mkdir -p /mnt/my_network_share
+    mount -t cifs //server/share /mnt/my_network_share -o username=user,password=pass
     ```
 
-2.  **Restart LM Studio** for the changes to take effect.
+2.  **Update the `docker-compose.yml`** file to mount the local directory into the container. Add the following to the `mcp-server` service definition:
+    ```yaml
+    volumes:
+      - /mnt/my_network_share:/data/network_share
+    ```
+
+3.  **Use the `file_fetcher` tool** by providing a path relative to the root of the network share. For example, to list the files in the root of the share, you would use:
+    ```json
+    {
+      "name": "file_fetcher",
+      "arguments": {
+        "path": "."
+      }
+    }
+    ```
 
 ## Open-webui Custom Tool
 

@@ -44,11 +44,12 @@ async def mcp_handler(request: Request, db: Session = Depends(get_db)):
                 }
             )
         elif method == "tools/list":
+            tools = await get_tool_definitions()
             return JSONResponse(
                 content={
                     "jsonrpc": "2.0",
                     "id": id,
-                    "result": {"tools": get_tool_definitions()},
+                    "result": {"tools": tools},
                 }
             )
         elif method == "tools/call":

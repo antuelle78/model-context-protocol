@@ -25,27 +25,23 @@ from pydantic import BaseModel, Field
 
 class Tools:
     def __init__(self):
-        self.gateway_url = "http://192.168.1.9:8000/api/v1/chat/completions" # Gateway endpoint
+        self.gateway_url = "http://192.168.1.9:8000/api/v1/mcp" # Gateway endpoint
 
     def _call_gateway_tool(self, tool_name: str, **kwargs) -> str:
         """Helper to call tools via the gateway."""
         tool_call_payload = {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": json.dumps({
-                        "name": tool_name,
-                        "arguments": kwargs
-                    })
-                }
-            ],
-            "model": "tool-calling-model" # Placeholder, adjust if needed
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": tool_name,
+                "arguments": kwargs,
+            },
+            "id": "1",
         }
         try:
             response = requests.post(self.gateway_url, json=tool_call_payload)
             response.raise_for_status()
-            # The gateway returns a ChatCompletionResponse, extract the content
-            return response.json()["choices"][0]["message"]["content"]
+            return response.json().get("result", {})
         except requests.RequestException as e:
             return f"Error calling tool '{tool_name}': {str(e)}"
         except KeyError as e:
@@ -53,77 +49,24 @@ class Tools:
         except json.JSONDecodeError as e:
             return f"Error decoding JSON from gateway for tool '{tool_name}': {str(e)}"
 
-    def fetch_all_servicenow_tickets(self) -> str:
+    def get_stock_price(self, ticker: str = Field(..., description="The stock ticker symbol, e.g., 'AAPL' for Apple.")) -> str:
         """
-        Fetches the latest tickets from ServiceNow and stores them in the database.
+        Fetches the current stock price for a given ticker symbol.
         """
-        return self._call_gateway_tool("fetch_all_servicenow_tickets")
-
-    def fetch_all_glpi_inventory(self) -> str:
-        """
-        Fetches all inventory from GLPI.
-        """
-        return self._call_gateway_tool("fetch_all_glpi_inventory")
-
-    def get_report_open_by_priority(self, priority: str = Field(..., description="The priority of the tickets to include in the report.")) -> str:
-        """
-        Generates a CSV report of open tickets by priority.
-        """
-        return self._call_gateway_tool("get_report_open_by_priority", priority=priority)
-
-    def get_report_by_assignment_group(self, group: str = Field(..., description="The assignment group of the tickets to include in the report.")) -> str:
-        """
-        Generates a CSV report of tickets by assignment group.
-        """
-        return self._call_gateway_tool("get_report_by_assignment_group", group=group)
-
-    def get_report_recently_resolved(self) -> str:
-        """
-        Generates a CSV report of recently resolved tickets.
-        """
-        return self._call_gateway_tool("get_report_recently_resolved")
-
-    def get_glpi_laptop_count(self) -> str:
-        """
-        Returns the number of laptops in GLPI.
-        """
-        return self._call_gateway_tool("get_glpi_laptop_count")
-
-    def get_glpi_pc_count(self) -> str:
-        """
-        Returns the number of PCs (desktop computers) in GLPI.
-        """
-        return self._call_gateway_tool("get_glpi_pc_count")
-
-    def get_glpi_monitor_count(self) -> str:
-        """
-        Returns the number of monitors in GLPI.
-        """
-        return self._call_gateway_tool("get_glpi_monitor_count")
-
-    def get_glpi_os_distribution(self) -> str:
-        """
-        Returns a breakdown of operating system usage across computers in GLPI.
-        """
-        return self._call_gateway_tool("get_glpi_os_distribution")
-
-    def get_glpi_full_asset_dump(self, itemtype: str = Field(..., description="The type of assets to dump (e.g., 'Computer', 'Monitor').")) -> str:
-        """
-        Returns a complete dump of all assets of a specified type from GLPI.
-        """
-        return self._call_gateway_tool("get_glpi_full_asset_dump", itemtype=itemtype)
-
-    def create_new_ticket(self, short_description: str = Field(..., description="A brief description of the ticket."), assignment_group: str = Field(..., description="The group responsible for resolving the ticket."), priority: str = Field(..., description="The priority of the ticket (e.g., '1 - Critical', '2 - High').")) -> str:
-        """
-        Creates a new ticket in the ITSM system.
-        """
-        return self._call_gateway_tool("create_new_ticket", short_description=short_description, assignment_group=assignment_group, priority=priority)
+        return self._call_gateway_tool("get_stock_price", ticker=ticker)
 
     def file_fetcher(self, path: str = Field(..., description="The absolute path to the directory to read.")) -> str:
         """
         Reads all files from a given directory and returns their content.
         """
-        return self._call_gateway_tool("file_fetcher", path=path) ```
+        return self._call_gateway_tool("file_fetcher", path=path)
+
+    def get_weather_forecast(self, lat: float = Field(..., description="The latitude of the location."), lon: float = Field(..., description="The longitude of the location.")) -> str:
+        """
+        Fetches the current weather for a specified location.
+        """
+        return self._call_gateway_tool("openweather_get_hourly_forecast", lat=lat, lon=lon)
+```
 
 ### How to use the tool
 
@@ -131,10 +74,9 @@ Once you have created the custom tool, you can use it in Open-webui by asking th
 
 For example, you can ask the LLM:
 
-- "Fetch the latest tickets"
-- "Generate a report of open tickets with priority 1 - Critical"
-- "Generate a report of tickets assigned to Group 1"
-- "Generate a report of recently resolved tickets"
+- "What is the stock price of GOOGL?"
+- "Read the files in the /data/network_share directory."
+- "What is the weather forecast for latitude 40.7128 and longitude -74.0060?"
 
 The LLM will then call the corresponding method of the `Tools` class and return the result.
 
