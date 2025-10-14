@@ -43,6 +43,11 @@ async def create_ticket(db: Session, ticket_data: TicketCreateRequest) -> Ticket
         response.raise_for_status()
         created_ticket_data = response.json()["result"]
 
+        # Check if the ticket already exists
+        existing_ticket = db.query(Ticket).filter(Ticket.number == created_ticket_data["number"]).first()
+        if existing_ticket:
+            return TicketCreationResponse(**existing_ticket.__dict__)
+
         # Store the created ticket in the local database
         ticket = Ticket(**{k: v for k, v in created_ticket_data.items() if k in Ticket.__table__.columns.keys()})
         db.add(ticket)

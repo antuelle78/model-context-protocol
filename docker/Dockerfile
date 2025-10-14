@@ -15,7 +15,9 @@ FROM python:3.13-slim
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
-COPY app ./app
+COPY . .
+COPY data ./data
+ENV PYTHONPATH="/app"
 
 ARG SERVICENOW_USERNAME
 ARG SERVICENOW_PASSWORD

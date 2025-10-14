@@ -4,6 +4,7 @@ app = Flask(__name__)
 
 @app.route("/glpi/apirest.php/initSession", methods=["GET", "POST"])
 def init_session():
+    print(f"Headers: {request.headers}")
     # Simulate a successful session initialization
     return jsonify({"session_token": "mock_glpi_session_token"})
 

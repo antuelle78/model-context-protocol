@@ -21,7 +21,7 @@ def db_session():
 
 from unittest.mock import patch, MagicMock
 
-@patch('app.main.httpx.AsyncClient')
+@patch('app.tool_utils.httpx.AsyncClient')
 def test_chat_completions_tool_call(mock_async_client, client: TestClient, db_session):
 
 
@@ -35,24 +35,21 @@ def test_chat_completions_tool_call(mock_async_client, client: TestClient, db_se
 
 
     request_data = {
-        "messages": [
-            {
-                "role": "user",
-                "content": json.dumps(
-                    {
-                        "name": "get_report_open_by_priority",
-                        "arguments": {"priority": "1 - Critical"},
-                    }
-                ),
-            }
-        ],
-        "model": "gpt-3.5-turbo",
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "get_report_open_by_priority",
+            "arguments": {"priority": "1 - Critical"},
+        },
     }
-    response = client.post("/api/v1/chat/completions", json=request_data)
+    response = client.post("/api/v1/mcp", json=request_data)
     assert response.status_code == 200
     data = response.json()
-    assert data["choices"][0]["message"]["role"] == "assistant"
-    assert "INC009,Ticket 9,Group 1" in data["choices"][0]["message"]["content"]
+    assert data["jsonrpc"] == "2.0"
+    assert data["id"] == 1
+    assert "result" in data
+    assert "INC009,Ticket 9,Group 1" in data["result"]["report"]
 
 def test_chat_completions_initialize(client: TestClient):
     request_data = {
@@ -65,7 +62,7 @@ def test_chat_completions_initialize(client: TestClient):
             "clientInfo": {"name": "lmstudio-mcp-bridge", "version": "1.0.0"},
         },
     }
-    response = client.post("/api/v1/chat/completions", json=request_data)
+    response = client.post("/api/v1/mcp", json=request_data)
     assert response.status_code == 200
     data = response.json()
     assert data["jsonrpc"] == "2.0"

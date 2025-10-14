@@ -4,41 +4,30 @@ from sqlalchemy.orm import Session
 from app.models import Ticket
 from app.schemas import TicketCreateRequest, TicketCreationResponse
 from app.config import settings
-from servicenow_service.services import fetch_and_store_tickets as servicenow_fetch_and_store_tickets
 
-async def fetch_and_store_tickets(
-    service_name: str,
-    glpi_base_url: str = None,
-    glpi_app_token: str = None,
-    glpi_access_token: str = None,
-    servicenow_base_url: str = None,
-    servicenow_username: str = None,
-    servicenow_password: str = None
-) -> list[Dict[str, Any]]:
-    """
-    Fetches tickets from the specified service (GLPI or ServiceNow) and stores them in the database.
-    """
-    db = next(get_db())
-    tickets_data = []
+async def fetch_and_store_tickets(db: Session):
+    auth = (settings.SERVICENOW_USERNAME, settings.SERVICENOW_PASSWORD)
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{settings.SERVICE_MANAGER_API_URL}/now/table/incident?sysparm_display_value=true",
+            auth=auth
+        )
+        response.raise_for_status()
+        tickets = response.json()["result"]
 
-    # Use settings from config.py if not provided as arguments
-    glpi_base_url = glpi_base_url or settings.GLPI_API_URL
-    glpi_app_token = glpi_app_token or settings.GLPI_APP_TOKEN
-    glpi_access_token = glpi_access_token or settings.GLPI_ACCESS_TOKEN
-    servicenow_base_url = servicenow_base_url or settings.SERVICE_MANAGER_API_URL
-    servicenow_username = servicenow_username or settings.SERVICENOW_USERNAME
-    servicenow_password = servicenow_password or settings.SERVICENOW_PASSWORD
-
-    if service_name.lower() == "glpi":
-        if not glpi_base_url or not glpi_app_token or not glpi_access_token:
-            raise ValueError("GLPI configuration (base_url, app_token, access_token) must be provided.")
-        glpi_tools = GLPITools(glpi_base_url, glpi_app_token, glpi_access_token)
-        tickets_data = await glpi_tools.get_all_tickets()
-    elif service_name.lower() == "servicenow":
-        if not servicenow_base_url or not servicenow_username or not servicenow_password:
-            raise ValueError("ServiceNow configuration (base_url, username, password) must be provided.")
-        await servicenow_fetch_and_store_tickets(db)
-        return {"message": "ServiceNow tickets fetched and stored successfully."}
+        for ticket_data in tickets:
+            ticket = db.query(Ticket).filter(Ticket.number == ticket_data["number"]).first()
+            if ticket:
+                # Update existing ticket
+                for key, value in ticket_data.items():
+                    if hasattr(ticket, key):
+                        setattr(ticket, key, value)
+            else:
+                # Create new ticket
+                ticket = Ticket(**{k: v for k, v in ticket_data.items() if k in Ticket.__table__.columns.keys()})
+                db.add(ticket)
+        db.commit()
+        return {"message": "Tickets fetched and stored successfully."}
 
 async def create_ticket(db: Session, ticket_data: TicketCreateRequest) -> TicketCreationResponse:
     auth = (settings.SERVICENOW_USERNAME, settings.SERVICENOW_PASSWORD)
@@ -70,4 +59,75 @@ def get_tickets_by_assignment_group(db: Session, group: str):
     return db.query(Ticket).filter(Ticket.assignment_group == group).all()
 
 def get_recently_resolved_tickets(db: Session):
-    return db.query(Ticket).filter(Ticket.state == "Resolved").order_by(Ticket.sys_updated_on.desc()).limit(10).all()
+    try:
+        tickets = db.query(Ticket).filter(Ticket.state == "Resolved").order_by(Ticket.sys_updated_on.desc()).limit(10).all()
+        return [ticket.__dict__ for ticket in tickets]
+    except Exception as e:
+        import traceback
+        print(f"Error in get_recently_resolved_tickets: {e}")
+        traceback.print_exc()
+        raise
+
+from glpi_api import GLPI
+
+class GlpiService:
+    def __init__(self):
+        try:
+            self.glpi = GLPI(
+                url=settings.GLPI_API_URL,
+                apptoken=settings.GLPI_APP_TOKEN,
+                auth=(settings.GLPI_USERNAME, settings.GLPI_PASSWORD)
+            )
+        except Exception as e:
+            self.glpi = None
+            print(f"Failed to initialize GLPI API: {e}")
+
+    def _check_init(self):
+        if not self.glpi:
+            raise Exception("GLPI connection not configured or failed to initialize.")
+
+    def get_asset_count(self, itemtype: str, query_params: dict = None) -> int:
+        self._check_init()
+        # The glpi-api library doesn't have a direct count method.
+        # We'll fetch all items and count them for simplicity for now.
+        # In a real-world scenario, you'd want to use pagination and optimize.
+        criteria_list = [query_params] if query_params else []
+        items = self.glpi.search(itemtype, criteria=criteria_list)
+        return len(items)
+
+    def get_assets(self, itemtype: str, query_params: dict = None) -> list:
+        self._check_init()
+        criteria_list = [query_params] if query_params else []
+        return self.glpi.search(itemtype, criteria=criteria_list)
+
+    def get_full_asset_dump(self, itemtype: str) -> list:
+        self._check_init()
+        # Fetch all items of a given type, handling pagination if necessary
+        # The glpi-api's search method should handle pagination automatically
+        return self.glpi.search(itemtype, criteria=[{"expand_dropdowns": True}])
+
+    def fetch_and_store_inventory(self) -> list:
+        self._check_init()
+        # For now, just fetch all computers and return them.
+        # In a real-world scenario, you would store this in a database.
+        return self.glpi.search("Computer")
+
+glpi_service = GlpiService()
+
+import os
+
+def read_directory(path: str):
+    """
+    Reads all files from a given directory and returns their content.
+    """
+    if not os.path.isdir(path):
+        raise ValueError("Invalid directory path")
+
+    file_contents = {}
+    for filename in os.listdir(path):
+        filepath = os.path.join(path, filename)
+        if os.path.isfile(filepath):
+            with open(filepath, "r") as f:
+                file_contents[filename] = f.read()
+
+    return file_contents

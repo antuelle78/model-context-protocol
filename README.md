@@ -4,18 +4,10 @@ This project implements a RESTful API that serves as the data backbone for ITSM 
 
 ## Features
 
-- **Fetch Tickets** (`POST /api/v1/tickets/fetch`): Fetches the latest tickets from ServiceNow and stores them in the database.
-- **Generate Reports** (`GET /api/v1/reports/{report_type}`): Generates various CSV reports based on ticketing data.
-  - `open_by_priority`: Report of open tickets by priority.
-  - `by_assignment_group`: Report of tickets by assignment group.
-  - `recently_resolved`: Report of recently resolved tickets.
-- **OpenAI Compatible Endpoint** (`POST /api/v1/chat/completions`): Allows integration with OpenAI-compatible clients (e.g., LM Studio) to interact with the reporting tools.
-- **GLPI Integration**: Provides tools to interact with a GLPI instance.
-  - `get_glpi_laptop_count`: Returns the number of laptops in GLPI.
-  - `get_glpi_pc_count`: Returns the number of PCs (desktop computers) in GLPI.
-  - `get_glpi_monitor_count`: Returns the number of monitors in GLPI.
-  - `get_glpi_os_distribution`: Returns a breakdown of operating system usage across computers in GLPI.
-  - `get_glpi_full_asset_dump`: Returns a complete dump of all assets of a specified type from GLPI.
+- **MCP Endpoint** (`POST /api/v1/mcp`): A unified endpoint for all MCP-compliant tools.
+- **ServiceNow Integration**: Tools for interacting with ServiceNow.
+- **GLPI Integration**: Tools for interacting with a GLPI instance.
+- **File Tools**: Tools for interacting with the local filesystem.
 
 All endpoints are documented in OpenAPI format and automatically served by FastAPI.
 
@@ -36,16 +28,13 @@ A flowchart depicting the project architecture can be found in the [architecture
 │   ├───main.py
 │   ├───models.py
 │   ├───schemas.py
-│   ├───services.py
-│   └───tools.py
+│   └───services.py
 ├───docker/
 │   ├───docker-compose.yml
-│   ├───Dockerfile
-│   └───integration_instructions.md
+│   └───Dockerfile
 ├───docs/
 │   ├───api_documentation.md
 │   ├───architecture.md
-│   ├───integration_instructions.md
 │   └───README.md
 ├───tests/
 │   ├───conftest.py
@@ -91,7 +80,7 @@ A flowchart depicting the project architecture can be found in the [architecture
 2.  **Build and run the container:**
 
     ```bash
-    docker-compose -f docker/docker-compose.yml up -d --build
+    docker-compose up -d --build
     ```
 
 ## Running the tests
@@ -118,140 +107,8 @@ To integrate with LM Studio, you need to provide an `mcp.json` file that describ
     {
       "mcpServers": {
         "MCP Server": {
-          "url": "http://localhost:8000/api/v1/chat/completions",
-          "tools": [
-            {
-              "type": "function",
-              "function": {
-                "name": "fetch_all_servicenow_tickets",
-                "description": "Fetches the latest tickets from the ITSM and stores them in the database.",
-                "parameters": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            {
-              "type": "function",
-              "function": {
-                "name": "fetch_all_glpi_inventory",
-                "description": "Fetches all inventory from GLPI.",
-                "parameters": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            {
-              "type": "function",
-              "function": {
-                "name": "get_report_open_by_priority",
-                "description": "Generates a CSV report of open tickets by priority.",
-                "parameters": {
-                  "type": "object",
-                  "properties": {
-                    "priority": {
-                      "type": "string",
-                      "description": "The priority of the tickets to include in the report."
-                    }
-                  },
-                  "required": ["priority"]
-                }
-              }
-            },
-            {
-              "type": "function",
-              "function": {
-                "name": "get_report_by_assignment_group",
-                "description": "Generates a CSV report of tickets by assignment group.",
-                "parameters": {
-                  "type": "object",
-                  "properties": {
-                    "group": {
-                      "type": "string",
-                      "description": "The assignment group of the tickets to include in the report."
-                    }
-                  },
-                  "required": ["group"]
-                }
-              }
-            },
-            {
-              "type": "function",
-              "function": {
-                "name": "get_report_recently_resolved",
-                "description": "Generates a CSV report of recently resolved tickets.",
-                "parameters": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            {
-              "type": "function",
-              "function": {
-                "name": "get_glpi_laptop_count",
-                "description": "Returns the number of laptops in GLPI.",
-                "parameters": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            {
-              "type": "function",
-              "function": {
-                "name": "get_glpi_pc_count",
-                "description": "Returns the number of PCs (desktop computers) in GLPI.",
-                "parameters": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            {
-              "type": "function",
-              "function": {
-                "name": "get_glpi_monitor_count",
-                "description": "Returns the number of monitors in GLPI.",
-                "parameters": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            {
-              "type": "function",
-              "function": {
-                "name": "get_glpi_os_distribution",
-                "description": "Returns a breakdown of operating system usage across computers in GLPI.",
-                "parameters": {
-                  "type": "object",
-                  "properties": {}
-                }
-              }
-            },
-            {
-              "type": "function",
-              "function": {
-                "name": "get_glpi_full_asset_dump",
-                "description": "Returns a complete dump of all assets of a specified type from GLPI.",
-                "parameters": {
-                  "type": "object",
-                  "properties": {
-                    "itemtype": {
-                      "type": "string",
-                      "description": "The type of asset to dump (e.g., Computer, Monitor)."
-                    }
-                  },
-                  "required": ["itemtype"]
-                }
-              }
-            }
-          ]
-        }
-      }
-    }
+          "url": "http://localhost:8000/api/v1/mcp",
+
     ```
 
 2.  **Restart LM Studio** for the changes to take effect.

@@ -6,7 +6,7 @@ from typing import List
 
 # Assuming these files will be copied into servicenow_service/
 from .database import get_db, engine
-from .models import Base
+from .models import Base, Ticket
 from . import services
 from .schemas import (
     TicketCreateRequest,
@@ -21,6 +21,18 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="ServiceNow Tools Service", version="1.0.0")
 
+def to_csv_string(tickets: List[Ticket]):
+    if not tickets:
+        return ""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    # Write header from the first ticket's attributes
+    writer.writerow([c.key for c in Ticket.__table__.columns])
+    # Write rows
+    for ticket in tickets:
+        writer.writerow([getattr(ticket, c.key) for c in Ticket.__table__.columns])
+    return output.getvalue()
+
 # Function to generate a CSV report of open tickets by priority
 @app.get("/servicenow/reports/open_by_priority")
 async def generate_open_tickets_by_priority_report_endpoint(
@@ -29,8 +41,9 @@ async def generate_open_tickets_by_priority_report_endpoint(
     """
     Generates a CSV report of open tickets by priority.
     """
-    report = await services.generate_open_tickets_by_priority_report(db, priority)
-    return {"report": report}
+    tickets = services.get_tickets_by_priority(db, priority)
+    report = to_csv_string(tickets)
+    return {"data": report}
 
 # Function to generate a CSV report of tickets by assignment group
 @app.get("/servicenow/reports/by_assignment_group")
@@ -40,8 +53,9 @@ async def generate_tickets_by_assignment_group_report_endpoint(
     """
     Generates a CSV report of tickets by assignment group.
     """
-    report = await services.generate_tickets_by_assignment_group_report(db, group)
-    return {"report": report}
+    tickets = services.get_tickets_by_assignment_group(db, group)
+    report = to_csv_string(tickets)
+    return {"data": report}
 
 # Function to generate a CSV report of recently resolved tickets
 @app.get("/servicenow/reports/recently_resolved")
@@ -49,8 +63,9 @@ async def generate_recently_resolved_tickets_report_endpoint(db: Session = Depen
     """
     Generates a CSV report of recently resolved tickets.
     """
-    report = await services.generate_recently_resolved_tickets_report(db)
-    return {"report": report}
+    tickets = services.get_recently_resolved_tickets(db)
+    report = to_csv_string(tickets)
+    return {"data": report}
 
 # Function to create a new ticket in the ITSM system
 @app.post("/servicenow/tickets/create")
@@ -58,8 +73,13 @@ async def create_new_ticket_endpoint(args: CreateNewTicketArgs, db: Session = De
     """
     Creates a new ticket in the ITSM system.
     """
-    created_ticket_message = await services.create_new_ticket(db, args)
-    return {"message": created_ticket_message}
+    ticket_data = TicketCreateRequest(
+        short_description=args.short_description,
+        assignment_group=args.assignment_group,
+        priority=args.priority,
+    )
+    created_ticket = await services.create_ticket(db, ticket_data)
+    return {"data": created_ticket.dict()}
 
 @app.post("/servicenow/tickets/fetch_all_servicenow_tickets")
 async def fetch_all_servicenow_tickets_endpoint(db: Session = Depends(get_db)):
@@ -69,4 +89,4 @@ async def fetch_all_servicenow_tickets_endpoint(db: Session = Depends(get_db)):
     print("Received request for /servicenow/tickets/fetch_all_servicenow_tickets")
     result = await services.fetch_and_store_tickets(db)
     print(f"Returning from /servicenow/tickets/fetch_all_servicenow_tickets: {result}")
-    return result
+    return {"data": result}

@@ -4,6 +4,10 @@ app = Flask(__name__)
 
 @app.route("/now/table/incident", methods=["GET", "POST"])
 def handle_incidents():
+    auth = request.authorization
+    if not auth or auth.username != "admin" or auth.password != "admin":
+        return jsonify({"error": "Authentication failed"}), 401
+
     if request.method == "POST":
         data = request.get_json()
         # Simulate creating a new ticket

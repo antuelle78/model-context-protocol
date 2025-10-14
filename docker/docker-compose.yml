@@ -25,6 +25,7 @@ services:
       - GLPI_APP_TOKEN=${GLPI_APP_TOKEN}
       - GLPI_USERNAME=${GLPI_USERNAME}
       - GLPI_PASSWORD=${GLPI_PASSWORD}
+      - GLPI_ACCESS_TOKEN=${GLPI_ACCESS_TOKEN}
       - DATABASE_URL=${DATABASE_URL}
     networks:
       - mcp-net

@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class Tools:
     def __init__(self):
-        self.gateway_url = "http://localhost:8000/api/v1/chat/completions" # Gateway endpoint
+        self.gateway_url = "http://192.168.1.9:8000/api/v1/mcp" # Gateway endpoint
 
     def _call_gateway_tool(self, tool_name: str, **kwargs) -> str:
         """Helper to call tools via the gateway."""
@@ -94,3 +94,9 @@ class Tools:
         Creates a new ticket in the ITSM system.
         """
         return self._call_gateway_tool("create_new_ticket", short_description=short_description, assignment_group=assignment_group, priority=priority)
+
+    def file_fetcher(self, path: str = Field(..., description="The absolute path to the directory to read.")) -> str:
+        """
+        Reads all files from a given directory and returns their content.
+        """
+        return self._call_gateway_tool("file_fetcher", path=path)
