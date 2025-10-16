@@ -1,0 +1,23 @@
+
+{
+  "tools": [
+    {
+      "name": "yahoo_finance_tool",
+      "title": "Yahoo Finance Tool",
+      "description": "Provides stock market data.",
+      "url": "http://localhost:8000/api/v1/mcp"
+    },
+    {
+      "name": "weather_tool",
+      "title": "Weather Tool",
+      "description": "Provides weather forecasts.",
+      "url": "http://localhost:8001/api/v1/mcp"
+    },
+    {
+      "name": "file_fetch_tool",
+      "title": "File Fetch Tool",
+      "description": "Fetches files from a network share.",
+      "url": "http://localhost:8002/api/v1/mcp"
+    }
+  ]
+}

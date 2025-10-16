@@ -1,0 +1,10 @@
+
+version: '3.8'
+
+services:
+  easyvista_tool:
+    build: .
+    ports:
+      - "8004:8004"
+    env_file:
+      - ./.env

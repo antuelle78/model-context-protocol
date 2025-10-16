@@ -1,0 +1,9 @@
+{
+  "servers": [
+    {
+      "name": "Wazuh Tools",
+      "url": "http://<NODE_IP>:30085/api/v1/mcp",
+      "description": "Wazuh Tools API"
+    }
+  ]
+}

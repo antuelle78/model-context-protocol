@@ -1,0 +1,4591 @@
+```yaml
+openapi: '3.0.0'
+info:
+  description: |
+    The Wazuh API is an open-source RESTful API that allows for interaction with the Wazuh manager from a web browser, command line tools like cURL or any script or program that can make web requests. The Wazuh WUI relies on this heavily and Wazuh’s goal is to accommodate complete remote management of the Wazuh infrastructure via the Wazuh WUI. Use the Wazuh API to easily perform everyday actions like adding an agent, restarting the manager(s) or agent(s) or looking up syscheck details.
+
+    # Authentication
+    Wazuh API endpoints require authentication to be used. Therefore, all calls must include a JSON Web Token. JWT is an open standard (RFC 7519) that defines a compact and self-contained way for securely transmitting information between parties as a JSON object. Perform a call with `basicAuth` to `POST /security/user/authenticate` and obtain a JWT token to run any endpoint. JWT tokens have a default duration of 900 seconds. To change this value, you must perform a call with a valid JWT token to `PUT /security/config`. After this change, you will need to get a new JWT token as all previously issued tokens are revoked when any change is performed on security configuration.
+
+    Login with USER and PASSWORD:
+    `curl -u : -k -X POST "https://:55000/security/user/authenticate"`
+    ```json
+    {
+      "data": {
+        "token": ""
+      },
+      "error": 0
+    }
+    ```
+    Use the token from the previous response to perform any endpoint request:
+    `curl -k -X "https://:55000/" -H "Authorization: Bearer "`
+    Change the token base duration:
+    `curl -k -X PUT "https://:55000/security/config" -H "Authorization: Bearer " -d '{"auth_token_exp_timeout": }`
+  version: '4.13.1'
+  x-revision: 'rc1'
+  title: 'Wazuh API REST'
+  license:
+    name: 'GPL 2.0'
+    url: 'https://github.com/wazuh/wazuh/blob/v4.13.1/LICENSE'
+servers:
+  - url: '{protocol}://{host}:{port}'
+    variables:
+      protocol:
+        default: https
+        enum:
+          - http
+          - https
+      host:
+        default: localhost
+      port:
+        default: '55000'
+x-rbac-catalog:
+  resources:
+    '*:*':
+      description: "Resource applied in functions acting on resources that do not yet exist in the system. We call these functions, resourceless functions"
+    'agent:group':
+      description: "Reference agents via group name (i.e. agent:group:web)"
+    'agent:id':
+      description: "Reference agents via agent ID (i.e. agent:id:001)"
+    'group:id':
+      description: "Reference agent groups via group ID (i.e. group:id:default)"
+    'node:id':
+      description: "Reference cluster nodes via node ID (i.e. node:id:worker1)"
+    'decoder:file':
+      description: "Reference decoder files via its path (i.e. decoder:file:0005-wazuh_decoders.xml)"
+    'list:file':
+      description: "Reference list files via its filename (i.e. list:file:audit-keys)"
+    'rule:file':
+      description: "Reference rule files via its path (i.e. rule:file:0610-win-ms_logs_rules.xml)"
+    'policy:id':
+      description: "Reference security policies via its id (i.e. policy:id:1)"
+    'role:id':
+      description: "Reference security roles via its id (i.e. role:id:1)"
+    'rule:id':
+      description: "Reference security rules via its id (i.e. rule:id:1)"
+    'user:id':
+      description: "Reference security users via its id (i.e. user:id:1)"
+  actions:
+    'active-response:command':
+      description: "Execute active response commands in the agents"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: ['active-response:command']
+        resources: ['agent:id:001', 'agent:group:atlantic']
+        effect: "allow"
+    'agent:create':
+      description: "Create new agents"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['agent:create']
+        resources: ['*:*:*']
+        effect: "allow"
+    'agent:read':
+      description: "Access agents information (id, name, group, last keep alive, etc)"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: ['agent:read']
+        resources: ['agent:id:*']
+        effect: "allow"
+    'agent:delete':
+      description: "Delete agents"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: ['agent:delete']
+        resources: ['agent:id:010', 'agent:group:pacific']
+        effect: "allow"
+    'agent:modify_group':
+      description: "Change the group of agents"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: ['agent:modify_group']
+        resources: ['agent:id:004', 'agent:group:us-east']
+        effect: "allow"
+    'group:modify_assignments':
+      description: "Change the agents assigned to the group"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/group:id'
+      example:
+        actions: ['group:modify_assignments']
+        resources: ['group:id:*']
+        effect: "allow"
+    'agent:upgrade':
+      description: "Upgrade the version of the agents"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: ['agent:upgrade']
+        resources: ['agent:id:001', 'agent:group:mediterranean']
+        effect: "allow"
+    'agent:reconnect':
+      description: "Force reconnect agents"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: [ 'agent:reconnect' ]
+        resources: [ 'agent:id:050', 'agent:id:049' ]
+        effect: "deny"
+    'agent:restart':
+      description: "Restart agents"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: ['agent:restart']
+        resources: ['agent:id:050', 'agent:id:049']
+        effect: "deny"
+    'agent:uninstall':
+      description: "Check user's permission to uninstall agents"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['agent:uninstall']
+        resources: [ '*:*:*' ]
+        effect: "allow"
+    'group:create':
+      description: "Create new agent groups"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['group:create']
+        resources: ['*:*:*']
+        effect: "allow"
+    'group:read':
+      description: "Access agent groups information (id, name, agents, etc)"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/group:id'
+      example:
+        actions: ['group:create']
+        resources: ['group:id:*']
+        effect: "allow"
+    'group:update_config':
+      description: "Change the configuration of agent groups"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/group:id'
+      example:
+        actions: ['group:update_config']
+        resources: ['group:id:*']
+        effect: "deny"
+    'group:delete':
+      description: "Delete agent groups"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/group:id'
+      example:
+        actions: ['group:delete']
+        resources: ['group:id:*']
+        effect: "allow"
+    'ciscat:read':
+      description: "Access CIS-CAT results for agents"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: ['ciscat:read']
+        resources: ['agent:id:001', 'agent:id:003', 'agent:group:default']
+        effect: "deny"
+    'cluster:read':
+      description: "Read Wazuh's cluster nodes configuration"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/node:id'
+      example:
+        actions: ['cluster:read']
+        resources: ['node:id:worker1', 'node:id:worker3']
+        effect: "deny"
+    'cluster:update_config':
+      description: "Change the Wazuh's cluster node configuration"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/node:id'
+      example:
+        actions: [ 'cluster:update_config' ]
+        resources: ['node:id:worker1']
+        effect: "allow"
+    'cluster:read_api_config':
+      description: "Check Wazuh's cluster nodes API configuration"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['cluster:read_api_config']
+        resources: ['node:id:worker1', 'node:id:worker3']
+        effect: "allow"
+    'cluster:restart':
+      description: "Restart Wazuh's cluster nodes"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/node:id'
+      example:
+        actions: ['cluster:restart']
+        resources: ['node:id:worker1']
+        effect: "allow"
+    'cluster:status':
+      description: "Check Wazuh's cluster general status"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['cluster:status']
+        resources: ['*:*:*']
+        effect: "allow"
+    'manager:read':
+      description: "Read Wazuh manager configuration"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['manager:read']
+        resources: ['*:*:*']
+        effect: "allow"
+    'manager:update_config':
+      description: "Update current Wazuh manager configuration"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: [ 'manager:update_config' ]
+        resources: [ '*:*:*' ]
+        effect: "allow"
+    'manager:read_api_config':
+      description: "Read Wazuh manager API configuration"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['manager:read_api_config']
+        resources: ['*:*:*']
+        effect: "allow"
+    'manager:restart':
+      description: "Restart Wazuh managers"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['manager:restart']
+        resources: ['*:*:*']
+        effect: "deny"
+    'mitre:read':
+      description: "Access information from MITRE database"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['mitre:read']
+        resources: ['*:*:*']
+        effect: "allow"
+    'decoders:read':
+      description: "Read decoders files"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/decoder:file'
+      example:
+        actions: ['decoders:read']
+        resources: ['decoder:file:*']
+        effect: "allow"
+    'decoders:update':
+      description: "Update or upload custom decoder files"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['decoders:update']
+        resources: ['*:*:*']
+        effect: "allow"
+    'decoders:delete':
+      description: "Delete custom decoder files"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/decoder:file'
+      example:
+        actions: ['decoders:delete']
+        resources: ['decoder:file:local_decoder.xml']
+        effect: "allow"
+    'lists:read':
+      description: "Read CDB lists files"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/list:file'
+      example:
+        actions: ['lists:read']
+        resources: ['list:file:audit-keys']
+        effect: "deny"
+    'lists:update':
+      description: "Update or upload CDB lists files"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['lists:update']
+        resources: ['*:*:*']
+        effect: "allow"
+    'lists:delete':
+      description: "Delete CDB lists files"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/list:file'
+      example:
+        actions: ['lists:delete']
+        resources: ['list:file:audit-keys']
+        effect: "deny"
+    'logtest:run':
+      description: "Run logtest tool or end a logtest session"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: [ 'logtest:run' ]
+        resources: [ '*:*:*' ]
+        effect: "allow"
+    'rootcheck:read':
+      description: "Access information from agents rootcheck database"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: [ 'rootcheck:read' ]
+        resources: [ 'agent:id:011' ]
+        effect: "allow"
+    'rootcheck:clear':
+      description: "Clear the agents rootcheck database"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: [ 'rootcheck:clear' ]
+        resources: [ 'agent:id:*' ]
+        effect: "deny"
+    'rootcheck:run':
+      description: "Run agents rootcheck scan"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: [ 'rootcheck:run' ]
+        resources: [ 'agent:id:*' ]
+        effect: "allow"
+    'rules:read':
+      description: "Read rules files"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/rule:file'
+      example:
+        actions: ['rules:read']
+        resources: ['rule:file:0610-win-ms_logs_rules.xml']
+        effect: "allow"
+    'rules:update':
+      description: "Update or upload custom rule files"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['rules:update']
+        resources: ['*:*:*']
+        effect: "allow"
+    'rules:delete':
+      description: "Delete custom rule files"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/rule:file'
+      example:
+        actions: ['rules:delete']
+        resources: ['rule:file:0610-win-ms_logs_rules.xml']
+        effect: "allow"
+    'sca:read':
+      description: "Access agents security configuration assessment"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: ['sca:read']
+        resources: ['agent:id:*']
+        effect: "allow"
+    'security:create':
+      description: "Create new system security resources"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['security:create']
+        resources: ['*:*:*']
+        effect: "deny"
+    'security:create_user':
+      description: "Create new system users"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['security:create_user']
+        resources: ['*:*:*']
+        effect: "allow"
+    'security:read':
+      description: "Access information about system security resources"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/policy:id'
+        - $ref: '#/x-rbac-catalog/resources/role:id'
+        - $ref: '#/x-rbac-catalog/resources/user:id'
+        - $ref: '#/x-rbac-catalog/resources/rule:id'
+      example:
+        actions: ['security:read']
+        resources: ['policy:id:*', 'role:id:2', 'user:id:5', 'rule:id:3']
+        effect: "allow"
+    'security:edit_run_as':
+      description: "Change the value of the allow_run_as flag for a user"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: [ 'security:edit_run_as' ]
+        resources: [ '*:*:*' ]
+        effect: "allow"
+    'security:update':
+      description: "Update the information of system security resources"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/policy:id'
+        - $ref: '#/x-rbac-catalog/resources/role:id'
+        - $ref: '#/x-rbac-catalog/resources/user:id'
+        - $ref: '#/x-rbac-catalog/resources/rule:id'
+      example:
+        actions: ['security:update']
+        resources: ['policy:id:*', 'role:id:4', 'user:id:3', 'rule:id:4']
+        effect: "deny"
+    'security:delete':
+      description: "Delete system security resources"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/policy:id'
+        - $ref: '#/x-rbac-catalog/resources/role:id'
+        - $ref: '#/x-rbac-catalog/resources/user:id'
+        - $ref: '#/x-rbac-catalog/resources/rule:id'
+      example:
+        actions: ['security:delete']
+        resources: ['policy:id:*', 'role:id:3', 'user:id:4', 'rule:id:2']
+        effect: "deny"
+    'security:read_config':
+      description: "Read current system security configuration"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['security:read_config']
+        resources: ['*:*:*']
+        effect: "allow"
+    'security:update_config':
+      description: "Update current system security configuration"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['security:update_config']
+        resources: ['*:*:*']
+        effect: "allow"
+    'security:revoke':
+      description: "Revoke all active JWT tokens"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['security:revoke']
+        resources: ['*:*:*']
+        effect: "deny"
+    'syscheck:read':
+      description: "Access information from agents syscheck database"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: ['syscheck:read']
+        resources: ['agent:id:011', 'agent:group:us-west']
+        effect: "allow"
+    'syscheck:clear':
+      description: "Clear the agents syscheck database"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: ['syscheck:clear']
+        resources: ['agent:id:*']
+        effect: "deny"
+    'syscheck:run':
+      description: "Run agents syscheck scan"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: ['syscheck:run']
+        resources: ['agent:id:*']
+        effect: "allow"
+    'syscollector:read':
+      description: "Access agents syscollector information"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/agent:id'
+        - $ref: '#/x-rbac-catalog/resources/agent:group'
+      example:
+        actions: ['syscollector:read']
+        resources: ['agent:id:*']
+        effect: "allow"
+    'task:status':
+      description: "Access task's status information"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['task:status']
+        resources: ['*:*:*']
+        effect: "deny"
+    'event:ingest':
+      description: "Ingest events"
+      resources:
+        - $ref: '#/x-rbac-catalog/resources/*:*'
+      example:
+        actions: ['event:ingest']
+        resources: ['*:*:*']
+        effect: "allow"
+components:
+  responses:
+    ResponseError:
+      description: "Response to report a bad request"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RequestError'
+          example:
+            title: "Bad Request"
+            detail: "'{invalid_param}' is not a '{expected_type}'. Failed validating 'format' in schema['items']: {'description': '{parameter_name}', 'format': '{expected_format}', 'minLength': {expected_length}, 'type': '{expected_type}', 'x-scope': ['', '#/components/parameters/{parameter_name}']}"
+    PermissionDeniedResponse:
+      description: "Response to report a permission denied request"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            title: "Permission Denied"
+            detail: "Permission denied: Resource type: *:\*"
+            remediation: "Please, make sure you have permissions to execute the current request. For more information on how to set up permissions, please visit https://documentation.wazuh.com/4.13/user-manual/api/rbac/configuration.html"
+            error: 4000
+            dapi_errors:
+              unknown-node:
+                error: "Permission denied: Resource type: *:\*"
+    UnauthorizedResponse:
+      description: "Response to report an unauthorized request"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RequestError'
+          example:
+            title: "Unauthorized"
+            detail: "No authorization token provided"
+    InvalidCredentialsResponse:
+      description: "Response to report a problem with authentication"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RequestError'
+          example:
+            title: "Unauthorized"
+            detail: "Invalid credentials"
+    InvalidHTTPMethodResponse:
+      description: "Response to report an invalid HTTP method"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RequestError'
+          example:
+            title: "Method Not Allowed"
+            detail: "Specified method is invalid for this resource"
+    WrongContentTypeResponse:
+      description: "Response to report an invalid content-type"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RequestError'
+          example:
+            title: "Wazuh Error"
+            detail: "The body type is not the one specified in the content-type"
+            error: 6002
+    RequestTooLargeResponse:
+      description: "Maximum request body size exceeded"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RequestError'
+          example:
+            title: "Request Entity Too Large"
+            detail: "Maximum request body size 1048576 exceeded, actual body size 1225245"
+    TooManyRequestsResponse:
+      description: "Maximum number of request per minute reached"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RequestError'
+          example:
+            title: "Wazuh Error"
+            detail: "Maximum number of requests per minute reached"
+            remediation: "This limit can be changed in api.yaml file. More information here: https://documentation.wazuh.com/4.13/user-manual/api/security/configuration.html"
+            code: 6001
+    ResourceNotFoundResponse:
+      description: "Resource not found"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            title: "Resource Not Found"
+            detail: "The group does not exist"
+            remediation: "Please, use `GET /groups` to find all available groups: https://documentation.wazuh.com/4.13/user-manual/api/rbac/configuration.html"
+            code: 1710
+            dapi_errors:
+              unknown-node:
+                error: "The group does not exist"
+    UnsupportedMediaTypeResponse:
+      description: "Unsupported media type"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            title: "Unsupported media type"
+            detail: "Invalid Content-type (application/json), expected ['application/octet-stream']"
+  schemas:
+    ## Common models
+    ApiResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: "Human readable description to explain the result of the request"
+    SimpleApiError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          additionalProperties:
+            properties:
+              code:
+                type: integer
+                format: int32
+              message:
+                type: string
+              remediation:
+                type: string
+              id:
+                type: array
+                items:
+                  oneOf:
+                    - type: string
+                    - type: integer
+    ApiError:
+      type: object
+      required:
+        - title
+        - detail
+      nullable: true
+      properties:
+        title:
+          type: string
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+        code:
+          type: integer
+          format: int32
+        remediation:
+          type: string
+        dapi_errors:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              error:
+                type: string
+              logfile:
+                type: string
+                format: path
+    RequestError:
+      type: object
+      required:
+        - title
+        - detail
+      nullable: true
+      properties:
+        title:
+          type: string
+        detail:
+          type: string
+        error:
+          type: integer
+          format: int32
+    ScanIdTime:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: "Scan ID"
+        time:
+          type: string
+          format: date-time
+          description: "Date when the scan was performed"
+    ItemAffected:
+      type: object
+      required:
+        - affected_items
+      properties:
+        affected_items:
+          type: array
+          description: "Items that successfully applied the API call action"
+          items:
+            oneOf:
+              - type: string
+              - type: object
+    NodeAnalysisdReload:
+      type: object
+      required:
+        - name
+        - msg
+      properties:
+        name:
+          type: string
+          description: "Node name"
+        msg:
+          type: string
+          description: "Reload operation message"
+    AllItemsResponse:
+      type: object
+      required:
+        - total_affected_items
+        - failed_items
+        - total_failed_items
+      properties:
+        total_affected_items:
+          type: integer
+          format: int32
+          description: "Number of items that have successfully applied the requested operation"
+        failed_items:
+          type: array
+          description: "List of items that have failed applying the requested operation"
+          items:
+            $ref: '#/components/schemas/SimpleApiError'
+        total_failed_items:
+          type: integer
+          format: int32
+          description: "Number of items that have failed applying the requested operation"
+    AllItemsResponseAgents:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/Agent'
+    AllItemsResponseAgentsDistinct:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/AgentDistinct'
+    AllItemsResponseWazuhDaemonStats:
+      allOf:
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                oneOf:
+                  - $ref: '#/components/schemas/WazuhRemotedStatsItem'
+                  - $ref: '#/components/schemas/WazuhAnalysisdStatsItem'
+                  - $ref: '#/components/schemas/WazuhDBStatsItem'
+                  - $ref: '#/components/schemas/AllItemsResponse'
+    AllItemsResponseWazuhDaemonStatsAgents:
+      allOf:
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                oneOf:
+                  - $ref: '#/components/schemas/WazuhRemotedStatsAgentsItem'
+                  - $ref: '#/components/schemas/WazuhAnalysisdStatsAgentsItem'
+                  - $ref: '#/components/schemas/AllItemsResponse'
+    AllItemsResponseGroups:
+      allOf:
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/AgentGroup'
+        - $ref: '#/components/schemas/AllItemsResponse'
+    AllItemsResponseAgentIDs:
+      allOf:
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/AgentID'
+        - $ref: '#/components/schemas/AllItemsResponse'
+    AllItemsResponseNodeIDs:
+      allOf:
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/NodeID'
+        - $ref: '#/components/schemas/AllItemsResponse'
+    AllItemsResponseNodeAnalysisdReload:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              items:
+                $ref: '#/components/schemas/NodeAnalysisdReload'
+    AllItemsResponseNodeHealthcheck:
+      allOf:
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/NodeHealthcheck'
+        - $ref: '#/components/schemas/AllItemsResponse'
+    AllItemsResponseNodeRulesetSynchronizationStatus:
+      allOf:
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/NodeRulesetSyncStatus'
+        - $ref: '#/components/schemas/AllItemsResponse'
+    AllItemsResponseGroupIDs:
+      allOf:
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/GroupID'
+        - $ref: '#/components/schemas/AllItemsResponse'
+    AllItemsResponseAgentsSynced:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/AgentSynced'
+    AllItemsResponseAgentsKeys:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/AgentIdKey'
+    AllItemsResponseRules:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/Rule'
+    AllItemsResponseRulesFiles:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/RuleFile'
+    AllItemsResponseDecoders:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/Decoder'
+    AllItemsResponseDecodersFiles:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/DecoderFile'
+    AllItemsResponseLists:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/CDBList'
+    AllItemsResponseListsFiles:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/CDBListFile'
+    AllItemsResponseRoles:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/RolesResponse'
+    AllItemsResponsePolicies:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                oneOf:
+                  - $ref: '#/components/schemas/PoliciesResponse'
+                  - type: integer
+    AllItemsResponseSyscollectorHardware:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscollectorHardware'
+    AllItemsResponseSyscollectorHotfixes:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscollectorHotfix'
+    AllItemsResponseSyscollectorInterface:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscollectorInterface'
+    AllItemsResponseSyscollectorOS:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscollectorOS'
+    AllItemsResponseSyscollectorPackages:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscollectorPackages'
+    AllItemsResponseSyscollectorPorts:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscollectorPorts'
+    AllItemsResponseSyscollectorProcesses:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscollectorProcess'
+    AllItemsResponseSyscollectorProtocol:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscollectorProtocol'
+    AllItemsResponseSyscollectorNetwork:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscollectorNetwork'
+    AllItemsResponseUsers:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/UsersResponse'
+    AllItemsResponseGroupFiles:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/GroupFiles'
+    AllItemsResponseCiscatResult:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/CiscatResults'
+    AllItemsResponseSyscheckResult:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscheckDatabase'
+    AllItemsResponseLastScan:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/LastScan'
+    AllItemsResponseSCADatabase:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SCADatabase'
+    AllItemsResponseSCAChecks:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SCAChecks'
+    AllItemsResponseClusterNodes:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/ClusterNode'
+    AllItemsResponseWazuhLogs:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/WazuhLogs'
+    AllItemsResponseValidationStatus:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/ValidationStatus'
+    AllItemsResponseWazuhStats:
+      allOf:
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                anyOf:
+                  - $ref: '#/components/schemas/WazuhStats'
+                  - $ref: '#/components/schemas/WazuhHourlyStats'
+                  - $ref: '#/components/schemas/WazuhWeeklyStats'
+                  - $ref: '#/components/schemas/WazuhAnalysisdStats'
+                  - $ref: '#/components/schemas/WazuhRemotedStats'
+                  - $ref: '#/components/schemas/AllItemsResponse'
+    BasicInfo:
+      type: object
+      properties:
+        title:
+          type: string
+          description: "API title name"
+        api_version:
+          type: string
+          description: "API version in the manager"
+        revision:
+          type: string
+          description: "API revision"
+        license_name:
+          type: string
+          description: "API license name"
+        license_url:
+          type: string
+          description: "API license url"
+        hostname:
+          type: string
+          description: "Server hostname"
+        timestamp:
+          type: string
+    ## Ruleset models
+    RulesetFile:
+      type: object
+      properties:
+        filename:
+          type: string
+          description: "Name of the file"
+        relative_dirname:
+          type: string
+          format: paths
+          description: "Folder path where the file is located. This path is relative to the Wazuh installation path"
+    RulesetStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          description: "Whether the specified ruleset file is enabled or disabled in Wazuh manager configuration"
+          enum:
+            - enabled
+            - disabled
+    ## Active-response models
+    ActiveResponseBody:
+      type: object
+      properties:
+        arguments:
+          description: "Command arguments"
+          type: array
+          items:
+            type: string
+        command:
+          description: "Command running in the agent. If this value starts with `!`, then it refers to a script name instead of a command name"
+          type: string
+          format: active_response_command
+        alert:
+          type: object
+          properties:
+            data:
+              description: "Alert data depending on the active response command executed"
+              type: object
+          required:
+            - command
+    ## Agents models
+    Agent:
+      type: object
+      properties:
+        version:
+          type: string
+          description: "Wazuh version the agent has installed"
+        id:
+          $ref: '#/components/schemas/AgentID'
+        name:
+          type: string
+          description: "Agent name used at the registration process"
+        status:
+          $ref: '#/components/schemas/AgentStatus'
+        configSum:
+          type: string
+          description: "MD5 checksum of the group configuration file (agent.conf)"
+        group:
+          type: array
+          description: "List of groups the agent belongs to"
+          items:
+            type: string
+        mergedSum:
+          type: string
+          description: "MD5 checksum of all group shared files merged in a single one (merged.mg)"
+        ip:
+          type: string
+          description: "IP where the agent communicates with the manager. If the manager can't get this information, it will be the same as registerIP field"
+        registerIP:
+          type: string
+          description: "IP used at agent the registration process"
+        manager:
+          type: string
+          description: "Hostname of the manager the agent is reporting to"
+        node_name:
+          type: string
+          description: "ID of the node the agent is reporting to"
+        dateAdd:
+          type: string
+          description: "Date when the agent was registered"
+        lastKeepAlive:
+          type: string
+          description: "Date when the last keepalive was received from the agent"
+        os:
+          type: object
+          properties:
+            major:
+              type: string
+            name:
+              type: string
+            uname:
+              type: string
+            platform:
+              type: string
+            version:
+              type: string
+            codename:
+              type: string
+            arch:
+              type: string
+            minor:
+              type: string
+          description: "Agent OS information"
+        status_code:
+          description: "Agent connection status code"
+          type: integer
+          format: int32
+          default: 0
+          minimum: 0
+          maximum: 5
+        group_config_status:
+          type: string
+          description: "Agent groups configuration sync status"
+    AgentAddBody:
+      type: object
+      properties:
+        name:
+          description: "Agent name"
+          type: string
+          format: names
+        ip:
+          description: "If this is not included, the API will get the IP automatically. Allowed values: IP, IP/NET, ANY"
+          type: string
+          format: alphanumeric_symbols
+      required:
+        - name
+    AgentGroup:
+      type: object
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          description: "Number of agents belonging to that group"
+        name:
+          type: string
+        mergedSum:
+          type: string
+          format: hash
+          description: "MD5 checksum of all group shared files merged in a single one (merged.mg)"
+        configSum:
+          type: string
+          format: hash
+          description: "MD5 checksum of the group configuration file (agent.conf)"
+    AgentGroupDeleted:
+      type: object
+      required:
+        - affected_items
+      properties:
+        affected_items:
+          type: array
+          description: "List of removed groups, agents belonging exclusively to the removed groups will be reassigned to group default"
+    AgentIdKey:
+      type: object
+      required:
+        - id
+        - key
+      properties:
+        id:
+          $ref: '#/components/schemas/AgentID'
+        key:
+          type: string
+          format: base64
+    AgentInsertBody:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/AgentID'
+        key:
+          type: string
+          maxLength: 64
+          minLength: 64
+          format: wazuh_key
+          description: "Key to use when communicating with the manager. The agent must have the same key on its `client.keys` file"
+        name:
+          description: "Agent name"
+          type: string
+          format: names
+        ip:
+          description: "If this is not included, the API will get the IP automatically. Allowed values: IP, IP/NET, ANY"
+          type: string
+          format: alphanumeric_symbols
+        force:
+          $ref: '#/components/schemas/AgentInsertForce'
+      required:
+        - name
+    AgentStatus:
+      type: string
+      enum:
+        - active
+        - pending
+        - never_connected
+        - disconnected
+      description: "Agent status. It is calculated based on the last keepalive and the Wazuh version"
+    AgentsSummary:
+      type: object
+      properties:
+        status:
+          type: object
+          properties:
+            active:
+              type: integer
+              format: int32
+            disconnected:
+              type: integer
+              format: int32
+            never_connected:
+              type: integer
+              format: int32
+            pending:
+              type: integer
+              format: int32
+        os:
+          type: object
+        groups:
+          type: object
+    AgentsSummaryStatus:
+      type: object
+      properties:
+        connection:
+          type: object
+          properties:
+            total:
+              type: integer
+              format: int32
+            active:
+              type: integer
+              format: int32
+            disconnected:
+              type: integer
+              format: int32
+            never_connected:
+              type: integer
+              format: int32
+            pending:
+              type: integer
+              format: int32
+        configuration:
+          type: object
+          properties:
+            total:
+              type: integer
+              format: int32
+            synced:
+              type: integer
+              format: int32
+            not_synced:
+              type: integer
+              format: int32
+    AgentDistinct:
+      allOf:
+        - $ref: '#/components/schemas/Agent'
+        - type: object
+          properties:
+            count:
+              type: integer
+              format: int32
+              description: "Number of agents with the specified unique fields"
+    AgentSynced:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "Agent ID"
+        synced:
+          type: boolean
+          description: "Sync info"
+    AgentID:
+      type: string
+      minLength: 3
+      description: "Agent ID"
+      format: numbers
+    AgentIDListAll:
+      type: string
+      minLength: 3
+      description: "Agent ID|all"
+      format: numbers_or_all
+    NodeID:
+      type: string
+      description: "Node ID"
+      format: string
+    AgentConfiguration:
+      type: object
+      description: "Current agent's configuration. The output varies with requested component and the agent configuration"
+    AgentInsertForce:
+      type: object
+      description: "Remove the old agent with the same name, ID or IP if the configuration is matched"
+      properties:
+        enabled:
+          type: boolean
+          default: True
+          description: "Enable force option"
+        disconnected_time:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: True
+              description: "Enable force disconnected_time option"
+            value:
+              type: string
+              default: "1h"
+              description: "Time the agent must has been disconnected to force the insertion. Time in seconds, ‘[n_days]d’, ‘[n_hours]h’, ‘[n_minutes]m’ or ‘[n_seconds]s’. For example, `7d`, `10s` and `10` are valid values. If no time unit is specified, seconds are used"
+              format: timeframe
+        after_registration_time:
+          type: string
+          default: "1h"
+          description: "Time the agent must has been registered to force the insertion. Time in seconds, ‘[n_days]d’, ‘[n_hours]h’, ‘[n_minutes]m’ or ‘[n_seconds]s’. For example, `7d`, `10s` and `10` are valid values. If no time unit is specified, seconds are used"
+          format: timeframe
+    WazuhRemotedStatsAgentsItem:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: "Daemon stats request time"
+        name:
+          type: string
+          description: "Daemon name"
+          enum:
+            - wazuh-remoted
+        agents:
+          type: array
+          items:
+            type: object
+            properties:
+              uptime:
+                type: string
+                format: date-time
+                description: "When the count of the metrics started"
+              id:
+                type: integer
+                format: int32
+                description: "Agent ID"
+              metrics:
+                type: object
+                properties:
+                  messages:
+                    type: object
+                    properties:
+                      received_breakdown:
+                        type: object
+                        properties:
+                          control:
+                            type: integer
+                            format: int32
+                            description: "Control messages received from agent"
+                          control_breakdown:
+                            type: object
+                            properties:
+                              keepalive:
+                                type: integer
+                                format: int32
+                                description: "Keepalive messages from agent"
+                              request:
+                                type: integer
+                                format: int32
+                                description: "Request messages (for example, WPK responses) from agent"
+                              shutdown:
+                                type: integer
+                                format: int32
+                                description: "Shutdown messages from agent"
+                              startup:
+                                type: integer
+                                format: int32
+                                description: "Startup messages from agent"
+                          event:
+                            type: integer
+                            format: int32
+                            description: "Event messages (syscheck, syscollector, logcollector, etc.) received from agent"
+                      sent_breakdown:
+                        type: object
+                        properties:
+                          ack:
+                            type: integer
+                            format: int32
+                            description: "ACK messages (response to keepalive, startup and shutdown) sent to agent"
+                          ar:
+                            type: integer
+                            format: int32
+                            description: "Active response messages sent to agent"
+                          discarded:
+                            type: integer
+                            format: int32
+                            description: "Messages discarded because the send queue was full (for this agent)"
+                          request:
+                            type: integer
+                            format: int32
+                            description: "Request messages (for example, WPK chunks) sent to agent"
+                          sca:
+                            type: integer
+                            format: int32
+                            description: "SCA messages sent to agent"
+                          shared:
+                            type: integer
+                            format: int32
+                            description: "Shared configuration messages (merged.mg) sent to agent"
+    WazuhAnalysisdStatsAgentsItem:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: "Daemon stats request time"
+        name:
+          type: string
+          description: "Daemon name"
+          enum:
+            - wazuh-analysisd
+        agents:
+          type: array
+          items:
+            type: object
+            properties:
+              uptime:
+                type: string
+                format: date-time
+                description: "When the count of the metrics started"
+              id:
+                type: integer
+                format: int32
+                description: "Agent ID"
+              metrics:
+                type: object
+                properties:
+                  events:
+                    type: object
+                    properties:
+                      processed:
+                        type: integer
+                        format: int32
+                        description: "Total processed events (analyzed by rules) from agent"
+                      received_breakdown:
+                        type: object
+                        properties:
+                          decoded_breakdown:
+                            type: object
+                            properties:
+                              agent:
+                                type: integer
+                                format: int32
+                                description: "Events coming from agentd (this agent)"
+                              dbsync:
+                                type: integer
+                                format: int32
+                                description: "Synchronization events (this agent)"
+                          integrations_breakdown:
+                            type: object
+                            properties:
+                              virustotal:
+                                type: integer
+                                format: int32
+                                description: "Events coming from VirusTotal (this agent)"
+                          modules_breakdown:
+                            type: object
+                            properties:
+                              aws:
+                                type: integer
+                                format: int32
+                                description: "Events coming from AWS module (this agent)"
+                              azure:
+                                type: integer
+                                format: int32
+                                description: "Events coming from Azure module (this agent)"
+                              ciscat:
+                                type: integer
+                                format: int32
+                                description: "Events coming from CIS-CAT module (this agent)"
+                              command:
+                                type: integer
+                                format: int32
+                                description: "Events coming from command module (this agent)"
+                              docker:
+                                type: integer
+                                format: int32
+                                description: "Events coming from Docker module (this agent)"
+                              gcp:
+                                type: integer
+                                format: int32
+                                description: "Events coming from GCP module (this agent)"
+                              github:
+                                type: integer
+                                format: int32
+                                description: "Events coming from GitHub module (this agent)"
+                              logcollector_breakdown:
+                                type: object
+                                properties:
+                                  eventchannel:
+                                    type: integer
+                                    format: int32
+                                    description: "EventChannel events collected by logcollector (this agent)"
+                                  eventlog:
+                                    type: integer
+                                    format: int32
+                                    description: "EventLog events collected by logcollector (this agent)"
+                                  macos:
+                                    type: integer
+                                    format: int32
+                                    description: "MacOS events collected by logcollector (this agent)"
+                                  others:
+                                    type: integer
+                                    format: int32
+                                    description: "Other events collected by logcollector (this agent)"
+                              office365:
+                                type: integer
+                                format: int32
+                                description: "Events coming from the Office365 module (this agent)"
+                              ms-graph:
+                                type: integer
+                                format: int32
+                                description: "Events coming from the ms-graph module (this agent)"
+                              oscap:
+                                type: integer
+                                format: int32
+                                description: "Events coming from the OSCAP module (this agent)"
+                              osquery:
+                                type: integer
+                                format: int32
+                                description: "Events coming from the OSQuery module (this agent)"
+                              rootcheck:
+                                type: integer
+                                format: int32
+                                description: "Events coming from the rootcheck (syscheckd) (this agent)"
+                              sca:
+                                type: integer
+                                format: int32
+                                description: "Events coming from the SCA module (this agent)"
+                              syscheck:
+                                type: integer
+                                format: int32
+                                description: "Events coming from the syscheckd (this agent)"
+                              syscollector:
+                                type: integer
+                                format: int32
+                                description: "Events coming from the syscollector module (this agent)"
+                              upgrade:
+                                type: integer
+                                format: int32
+                                description: "Events coming from the upgrade agent module (this agent)"
+                              vulnerability:
+                                type: integer
+                                format: int32
+                                description: "Events coming from the vulnerability detector module (this agent)"
+                          monitor:
+                            type: integer
+                            format: int32
+                            description: "Events coming from monitord (this agent)"
+                          remote:
+                            type: integer
+                            format: int32
+                            description: "Events coming from remoted (this agent)"
+                      written_breakdown:
+                        type: object
+                        properties:
+                          alerts:
+                            type: integer
+                            format: int32
+                            description: "Alerts written in alerts log file (this agent)"
+                          archives:
+                            type: integer
+                            format: int32
+                            description: "Alerts written in archives log file (this agent)"
+                          firewall:
+                            type: integer
+                            format: int32
+                            description: "Alerts written in firewall log file (this agent)"
+    ## Group models
+    GroupID:
+      type: string
+      description: "Group name"
+      format: group_names
+    GroupIDListAll:
+      type: string
+      minLength: 1
+      description: "Group name|all"
+      format: group_names_or_all
+    GroupConfiguration:
+      type: object
+      properties:
+        filters:
+          type: object
+          properties:
+            os:
+              type: string
+              description: "OS family where the configuration is being applied"
+            name:
+              type: string
+              description: "The name of the agent where that configuration is being applied"
+            profile:
+              type: string
+              description: "Profile name. Any agent configured to use the defined profile may use the block"
+        config:
+          type: object
+          description: "Group configuration. The fields on this object depend on the actual group configuration"
+      required:
+        - filters
+        - config
+    CreateGroupBody:
+      type: object
+      properties:
+        group_id:
+          description: "Group name. It can contain any of the characters between a-z, A-Z, 0-9, '_', '-' and '.'. Names '.' and '..' are restricted."
+          type: string
+          format: group_names
+          maxLength: 128
+      required:
+        - group_id
+      example:
+        group_id: NewGroup_1
+    GroupFiles:
+      type: object
+      properties:
+        filename:
+          type: string
+          description: "File name"
+        hash:
+          type: string
+          description: "File content hash"
+      example:
+        filename: agent.conf
+        hash: ab73af41699f13fdd81903b5f23d8d00
+    ## CisCat models
+    CiscatResults:
+      type: object
+      properties:
+        benchmark:
+          type: string
+          description: "CIS-CAT benchmark where the profile is defined"
+        error:
+          type: integer
+          format: int32
+          description: "Number of checks that CIS-CAT was not able to run"
+        fail:
+          type: integer
+          format: int32
+          description: "Number of failed checks. If this number is higher than 0 the host will probably have a vulnerability"
+        notchecked:
+          type: integer
+          format: int32
+          description: "Number of not passed checks"
+        pass:
+          type: integer
+          format: int32
+          description: "Number of passed checks"
+        profile:
+          type: string
+          description: "CIS-CAT profile scanned"
+        scan:
+          $ref: '#/components/schemas/ScanIdTime'
+        score:
+          type: integer
+          format: int32
+          description: "Percentage of passed checks"
+        unknown:
+          type: integer
+          format: int32
+          description: "Number of checks which status CIS-CAT was not able to determine"
+    ## Cluster models
+    ClusterNodeBasic:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - worker
+            - master
+          description: "Node type"
+        version:
+          type: string
+          format: \d+\.\d+\.\d+
+          description: "Wazuh version installed in the node"
+        ip:
+          type: string
+          description: "IP the node is using to communicate with other nodes in the cluster"
+    ClusterNodeName:
+      type: string
+      description: "Node ID"
+    ClusterNode:
+      allOf:
+        - $ref: '#/components/schemas/ClusterNodeBasic'
+        - type: object
+          properties:
+            name:
+              $ref: '#/components/schemas/ClusterNodeName'
+    NodeHealthcheck:
+      type: object
+      properties:
+        name:
+          type: object
+          properties:
+            info:
+              type: object
+              properties:
+                name:
+                  $ref: '#/components/schemas/ClusterNodeName'
+                info:
+                  allOf:
+                    - $ref: '#/components/schemas/ClusterNodeBasic'
+                    - type: object
+                      properties:
+                        totalActiveAgents:
+                          type: integer
+                          format: int32
+                          minimum: 0
+                          description: "Number of agents currently reporting to that node"
+                status:
+                  type: object
+                  properties:
+                    last_keep_alive:
+                      type: string
+                    last_sync_agentinfo:
+                      type: object
+                      properties:
+                        date_start_master:
+                          type: string
+                        date_end_master:
+                          type: string
+                        n_synced_chunks:
+                          type: integer
+                          format: int32
+                    last_sync_agentgroup:
+                      type: object
+                      properties:
+                        date_start:
+                          type: string
+                        date_end:
+                          type: string
+                        n_synced_chunks:
+                          type: integer
+                          format: int32
+                    last_sync_full_agentgroup:
+                      type: object
+                      properties:
+                        date_start:
+                          type: string
+                        date_end:
+                          type: string
+                        n_synced_chunks:
+                          type: integer
+                          format: int32
+                    last_sync_integrity:
+                      type: object
+                      properties:
+                        date_start_master:
+                          type: string
+                        date_end_master:
+                          type: string
+                        total_files:
+                          type: object
+                          properties:
+                            extra:
+                              type: integer
+                              format: int32
+                            extra_valid:
+                              type: integer
+                              format: int32
+                            missing:
+                              type: integer
+                              format: int32
+                            shared:
+                              type: integer
+                              format: int32
+                        sync_agent_info_free:
+                          type: boolean
+                        sync_integrity_free:
+                          type: boolean
+    NodeRulesetSyncStatus:
+      type: object
+      properties:
+        name:
+          type: string
+          description: "Node name"
+        synced:
+          type: boolean
+          description: "Whether the ruleset is synchronized or not"
+    DaemonStatus:
+      type: string
+      enum:
+        - stopped
+        - running
+    ClusterLocalInfo:
+      type: object
+      properties:
+        data:
+          properties:
+            node:
+              description: "Node name"
+              type: string
+            cluster:
+              description: "Cluster name the node belongs to"
+              type: string
+            type:
+              description: "Node type"
+              type: string
+    ClusterLocalConfig:
+      type: object
+      properties:
+        data:
+          properties:
+            name:
+              description: "Cluster name"
+              type: string
+            node_name:
+              description: "Node name"
+              type: string
+            node_type:
+              description: "Node type"
+              type: string
+              enum:
+                - master
+                - worker
+            key:
+              description: "Cluster key used to encrypt messages"
+              type: string
+            port:
+              description: "Port used by the **master** node to communicate with workers"
+              type: integer
+            bind_addr:
+              description: "Network interface used by the **master** to listen to incoming connections"
+              type: string
+            nodes:
+              description: "List of cluster master nodes. This list is used by **worker** nodes to connect to the master"
+              type: array
+              items:
+                type: string
+            hidden:
+              description: "Whether to hide the cluster information in the alerts"
+              type: string
+            disabled:
+              description: "Whether the cluster is enabled or not"
+              type: boolean
+    ClusterStatus:
+      type: object
+      properties:
+        data:
+          properties:
+            enabled:
+              description: "Whether the cluster is enabled in the Wazuh configuration"
+              type: string
+              enum:
+                - "yes"
+                - "no"
+            running:
+              description: "Whether the cluster daemon is running"
+              type: string
+              enum:
+                - "yes"
+                - "no"
+    # Logtest models
+    LogtestRequest:
+      type: object
+      required:
+        - event
+        - log_format
+        - location
+      properties:
+        token:
+          type: string
+          description: "Token for the logtest session"
+        log_format:
+          type: string
+          description: "Allowed values: syslog, json, snort-full, squid, eventlog, eventchannel, audit, mysql_log, postgresql_log, nmapg, iis, command, full_command, djb-multilog, multi-line"
+        location:
+          type: string
+          description: "Path string"
+        event:
+          type: string
+          description: "Event to look for"
+    # MITRE models
+    Mitre_reference_id:
+      type: string
+      description: "MITRE Reference ID"
+    Mitre_mitigation_id:
+      type: string
+      description: "MITRE mitigation ID"
+    Mitre_tactic_id:
+      type: string
+      description: "MITRE tactic ID"
+    Mitre_group_id:
+      type: string
+      description: "MITRE group ID"
+    Mitre_software_id:
+      type: string
+      description: "MITRE software ID"
+    Mitre_technique_id:
+      type: string
+      description: "MITRE technique ID"
+    # Security models
+    Role_id:
+      type: string
+      format: numbers
+      description: "Role ID"
+    Role_id_DELETE:
+      type: string
+      description: "Role ID|all"
+      format: numbers_or_all
+    Security_rule_id:
+      type: string
+      format: numbers
+      description: "Security rule ID"
+    Security_rule_id_DELETE:
+      type: string
+      format: numbers_or_all
+      description: "Security rule ID|all"
+    Task_id:
+      type: string
+      format: numbers
+      description: "Task ID"
+    Policy_id:
+      type: string
+      format: numbers
+      description: "Policy ID"
+    Policy_id_DELETE:
+      type: string
+      description: "Policy ID|all"
+      format: numbers_or_all
+    User_id:
+      type: string
+      format: numbers
+      description: "User ID"
+    User_id_DELETE:
+      type: string
+      format: numbers_or_all
+      description: "User ID|all"
+    PoliciesRequest:
+      type: object
+      required:
+        - name
+        - policy
+      properties:
+        name:
+          description: "Policy name"
+          type: string
+          maxLength: 64
+          format: names
+        policy:
+          description: "New policy definition"
+          type: object
+          properties:
+            actions:
+              type: array
+              description: "Actions to perform"
+              items:
+                type: string
+            resources:
+              type: array
+              description: "Resources to apply the actions on"
+              items:
+                type: string
+            effect:
+              type: string
+              description: "Effect of the policy"
+          required:
+            - actions
+            - resources
+            - effect
+    PoliciesRequest_no_required:
+      type: object
+      properties:
+        name:
+          description: "Policy name"
+          type: string
+          maxLength: 64
+          format: names
+        policy:
+          description: "New policy definition"
+          type: object
+          properties:
+            actions:
+              type: array
+              description: "Actions to perform"
+              items:
+                type: string
+            resources:
+              type: array
+              description: "Resources to apply the actions on"
+              items:
+                type: string
+            effect:
+              type: string
+              description: "Effect of the policy"
+          required:
+            - actions
+            - resources
+            - effect
+    PoliciesResponse:
+      type: object
+      properties:
+        id:
+          description: "Policy id"
+          type: integer
+        name:
+          description: "Policy name"
+          type: string
+        policy:
+          description: "New policy definition"
+          type: object
+          properties:
+            actions:
+              type: array
+              description: "Actions to perform"
+              items:
+                type: string
+            resources:
+              type: array
+              description: "Resources to apply the actions on"
+              items:
+                type: string
+            effect:
+              type: string
+              description: "Effect of the policy"
+    RolesResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: "Role id"
+        name:
+          type: string
+          description: "Role name"
+        rule:
+          type: object
+          description: "Role rule"
+    RolesRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: "Role name"
+          maxLength: 64
+          format: names
+    RolesRequest_no_required:
+      type: object
+      properties:
+        name:
+          type: string
+          description: "Role name"
+          maxLength: 64
+          format: names
+    SecurityRulesRequest:
+      type: object
+      required:
+        - name
+        - rule
+      properties:
+        name:
+          type: string
+          description: "Rule name"
+          maxLength: 64
+          format: names
+        rule:
+          type: object
+          description: "Rule body"
+    SecurityRulesRequest_no_required:
+      type: object
+      properties:
+        name:
+          type: string
+          description: "Rule name"
+          maxLength: 64
+          format: names
+        rule:
+          type: object
+          description: "Rule body"
+    UsersResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: "User's id"
+        username:
+          type: string
+        allow_run_as:
+          type: boolean
+          description: "Flag to enable the user to log in using authorization context"
+        roles:
+          type: array
+          description: "User's roles"
+    Token:
+      type: object
+      properties:
+        token:
+          type: string
+          description: "User's JWT token"
+    # Cluster and manager models
+    WazuhRemotedStatsItem:
+      type: object
+      properties:
+        uptime:
+          type: string
+          format: date-time
+          description: "When the count of the metrics started"
+        timestamp:
+          type: string
+          format: date-time
+          description: "Daemon stats request time"
+        name:
+          type: string
+          description: "Daemon name"
+          enum:
+            - wazuh-remoted
+        metrics:
+          type: object
+          properties:
+            bytes:
+              type: object
+              properties:
+                received:
+                  type: integer
+                  format: int32
+                  description: "Bytes received from agents"
+                sent:
+                  type: integer
+                  format: int32
+                  description: "Bytes sent to agents"
+            keys_reload_count:
+              type: integer
+              format: int32
+              description: "Number of times keys were reloaded into memory"
+            messages:
+              type: object
+              properties:
+                received_breakdown:
+                  type: object
+                  properties:
+                    control:
+                      type: integer
+                      format: int32
+                      description: "Control messages received from agents"
+                    control_breakdown:
+                      type: object
+                      properties:
+                        keepalive:
+                          type: integer
+                          format: int32
+                          description: "Keepalive messages from agents"
+                        request:
+                          type: integer
+                          format: int32
+                          description: "Request messages (for example, WPK responses) from agents"
+                        shutdown:
+                          type: integer
+                          format: int32
+                          description: "Shutdown messages from agents"
+                        startup:
+                          type: integer
+                          format: int32
+                          description: "Startup messages from agents"
+                    dequeued_after:
+                      type: integer
+                      format: int32
+                      description: "Messages dequeued after newer messages (counter < current counter)"
+                    discarded:
+                      type: integer
+                      format: int32
+                      description: "Messages discarded because the received queue was full"
+                    event:
+                      type: integer
+                      format: int32
+                      description: "Event messages (syscheck, syscollector, logcollector, etc.) received from agents"
+                    ping:
+                      type: integer
+                      format: int32
+                      description: "Ping messages received"
+                    unknown:
+                      type: integer
+                      format: int32
+                      description: "Not recognized messages"
+                sent_breakdown:
+                  type: object
+                  properties:
+                    ack:
+                      type: integer
+                      format: int32
+                      description: "ACK messages (response to keepalive, startup and shutdown) sent to agents"
+                    ar:
+                      type: integer
+                      format: int32
+                      description: "Active response messages sent to agents"
+                    discarded:
+                      type: integer
+                      format: int32
+                      description: "Messages discarded because the send queue was full"
+                    request:
+                      type: integer
+                      format: int32
+                      description: "Request messages (for example, WPK chunks) sent to agents"
+                    sca:
+                      type: integer
+                      format: int32
+                      description: "SCA messages sent to agents"
+                    shared:
+                      type: integer
+                      format: int32
+                      description: "Shared configuration messages (merged.mg) sent to agents"
+            queues:
+              type: object
+              properties:
+                received:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "Received messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the received queue (count)"
+            tcp_sessions:
+              type: integer
+              format: int32
+              description: "Current active TCP sessions (agents)"
+    WazuhAnalysisdStatsItem:
+      type: object
+      properties:
+        uptime:
+          type: string
+          format: date-time
+          description: "When the count of the metrics started"
+        timestamp:
+          type: string
+          format: date-time
+          description: "Daemon stats request time"
+        name:
+          type: string
+          description: "Daemon name"
+          enum:
+            - wazuh-analysisd
+        metrics:
+          type: object
+          properties:
+            bytes:
+              type: object
+              properties:
+                received:
+                  type: integer
+                  format: int32
+                  description: "Bytes received from agents and local modules"
+            eps:
+              type: object
+              properties:
+                available_credits:
+                  type: integer
+                  format: int32
+                  description: "Available credits to process events in the current timeframe"
+                available_credits_prev:
+                  type: integer
+                  format: int32
+                  description: "Available credits to process events in the previous timeframe"
+                events_dropped:
+                  type: integer
+                  format: int32
+                  description: "Events discarded because the EPS limit was reached and queues were full"
+                events_dropped_not_eps:
+                  type: integer
+                  format: int32
+                  description: "Events discarded due to causes unrelated to EPS limit"
+                seconds_over_limit:
+                  type: integer
+                  format: int32
+                  description: "Time in seconds the EPS limit was exceeded"
+            events:
+              type: object
+              properties:
+                processed:
+                  type: integer
+                  format: int32
+                  description: "Total processed events (analyzed by rules)"
+                received:
+                  type: integer
+                  format: int32
+                  description: "Total received events from agents and local modules"
+                received_breakdown:
+                  type: object
+                  properties:
+                    decoded_breakdown:
+                      type: object
+                      properties:
+                        agent:
+                          type: integer
+                          format: int32
+                          description: "Events coming from agentd"
+                        agentless:
+                          type: integer
+                          format: int32
+                          description: "Events coming from agentlessd"
+                        dbsync:
+                          type: integer
+                          format: int32
+                          description: "Synchronization events"
+                    integrations_breakdown:
+                      type: object
+                      properties:
+                        virustotal:
+                          type: integer
+                          format: int32
+                          description: "Events coming from VirusTotal integration"
+                    modules_breakdown:
+                      type: object
+                      properties:
+                        aws:
+                          type: integer
+                          format: int32
+                          description: "Events coming from AWS module"
+                        azure:
+                          type: integer
+                          format: int32
+                          description: "Events coming from Azure module"
+                        ciscat:
+                          type: integer
+                          format: int32
+                          description: "Events coming from CIS-CAT module"
+                        command:
+                          type: integer
+                          format: int32
+                          description: "Events coming from command module"
+                        docker:
+                          type: integer
+                          format: int32
+                          description: "Events coming from Docker module"
+                        gcp:
+                          type: integer
+                          format: int32
+                          description: "Events coming from GCP module"
+                        github:
+                          type: integer
+                          format: int32
+                          description: "Events coming from GitHub module"
+                        logcollector_breakdown:
+                          type: object
+                          properties:
+                            eventchannel:
+                              type: integer
+                              format: int32
+                              description: "EventChannel events collected by logcollector"
+                            eventlog:
+                              type: integer
+                              format: int32
+                              description: "EventLog events collected by logcollector"
+                            macos:
+                              type: integer
+                              format: int32
+                              description: "MacOS events collected by logcollector"
+                            others:
+                              type: integer
+                              format: int32
+                              description: "Other events collected by logcollector"
+                        office365:
+                          type: integer
+                          format: int32
+                          description: "Events coming from Office365 module"
+                        ms-graph:
+                          type: integer
+                          format: int32
+                          description: "Events coming from ms-graph module"
+                        oscap:
+                          type: integer
+                          format: int32
+                          description: "Events coming from OSCAP module"
+                        osquery:
+                          type: integer
+                          format: int32
+                          description: "Events coming from OSQuery module"
+                        rootcheck:
+                          type: integer
+                          format: int32
+                          description: "Events coming from rootcheck (syscheckd)"
+                        sca:
+                          type: integer
+                          format: int32
+                          description: "Events coming from SCA module"
+                        syscheck:
+                          type: integer
+                          format: int32
+                          description: "Events coming from syscheckd"
+                        syscollector:
+                          type: integer
+                          format: int32
+                          description: "Events coming from syscollector module"
+                        upgrade:
+                          type: integer
+                          format: int32
+                          description: "Events coming from upgrade agent module (upgrade responses)"
+                    monitor:
+                      type: integer
+                      format: int32
+                      description: "Events coming from monitord"
+                    remote:
+                      type: integer
+                      format: int32
+                      description: "Events coming from remoted"
+                    syslog:
+                      type: integer
+                      format: int32
+                      description: "Events coming from syslog remoted"
+                dropped_breakdown:
+                  type: object
+                  properties:
+                    agent:
+                      type: integer
+                      format: int32
+                      description: "Events discarded from agentd because the queue was full"
+                    agentless:
+                      type: integer
+                      format: int32
+                      description: "Events discarded from agentlessd because the queue was full"
+                    dbsync:
+                      type: integer
+                      format: int32
+                      description: "Synchronization events discarded because the queue was full"
+                    integrations_breakdown:
+                      type: object
+                      properties:
+                        virustotal:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from VirusTotal integration because the queue was full"
+                    modules_breakdown:
+                      type: object
+                      properties:
+                        aws:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from AWS module because the queue was full"
+                        azure:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from Azure module because the queue was full"
+                        ciscat:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from CIS-CAT module because the queue was full"
+                        command:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from command module because the queue was full"
+                        docker:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from Docker module because the queue was full"
+                        gcp:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from GCP module because the queue was full"
+                        github:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from GitHub module because the queue was full"
+                        logcollector_breakdown:
+                          type: object
+                          properties:
+                            eventchannel:
+                              type: integer
+                              format: int32
+                              description: "EventChannel events collected by logcollector discarded because the queue was full"
+                            eventlog:
+                              type: integer
+                              format: int32
+                              description: "EventLog events collected by logcollector discarded because the queue was full"
+                            macos:
+                              type: integer
+                              format: int32
+                              description: "MacOS events collected by logcollector discarded because the queue was full"
+                            others:
+                              type: integer
+                              format: int32
+                              description: "Other events collected by logcollector discarded because the queue was full"
+                        office365:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from Office365 module because the queue was full"
+                        ms-graph:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from ms-graph module because the queue was full"
+                        oscap:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from OSCAP module because the queue was full"
+                        osquery:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from OSQuery module because the queue was full"
+                        rootcheck:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from rootcheck (syscheckd) because the queue was full"
+                        sca:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from SCA module because the queue was full"
+                        syscheck:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from syscheckd because the queue was full"
+                        syscollector:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from syscollector module because the queue was full"
+                        upgrade:
+                          type: integer
+                          format: int32
+                          description: "Events discarded from upgrade agent module because the queue was full"
+                    monitor:
+                      type: integer
+                      format: int32
+                      description: "Events discarded from monitord because the queue was full"
+                    remote:
+                      type: integer
+                      format: int32
+                      description: "Events discarded from remoted because the queue was full"
+                    syslog:
+                      type: integer
+                      format: int32
+                      description: "Events discarded from syslog remoted because the queue was full"
+                written_breakdown:
+                  type: object
+                  properties:
+                    alerts:
+                      type: integer
+                      format: int32
+                      description: "Alerts written in alerts log file"
+                    archives:
+                      type: integer
+                      format: int32
+                      description: "Alerts written in archives log file"
+                    firewall:
+                      type: integer
+                      format: int32
+                      description: "Alerts written in firewall log file"
+                    fts:
+                      type: integer
+                      format: int32
+                      description: "Alerts written in FTS queue file"
+                    stats:
+                      type: integer
+                      format: int32
+                      description: "Alerts written in stats files"
+            queues:
+              type: object
+              properties:
+                alerts:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "Alerts messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the alerts queue (percentage)"
+                archives:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "Archives messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the archives queue (percentage)"
+                dbsync:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "DBsync messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the dbsync queue (percentage)"
+                eventchannel:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "EventChannel messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the eventchannel queue (percentage)"
+                firewall:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "Firewall messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Percentage of use in the queue of events to write in the firewall log"
+                fts:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "FTS messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the FTS queue (percentage)"
+                hostinfo:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "Hostinfo messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the hostinfo queue (percentage)"
+                others:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "Other events messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the other events queue (percentage)"
+                processed:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "Processed messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the processed queue (percentage)"
+                rootcheck:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "Rootcheck messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the rootcheck queue (percentage)"
+                sca:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "SCA messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the SCA queue (percentage)"
+                stats:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "Stats messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the stats queue (percentage)"
+                syscheck:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "Syscheck messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the syscheck queue (percentage)"
+                syscollector:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "Syscollector messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the syscollector queue (percentage)"
+                upgrade:
+                  type: object
+                  properties:
+                    size:
+                      type: integer
+                      format: int32
+                      description: "Upgrade messages queue size"
+                    usage:
+                      type: integer
+                      format: int32
+                      description: "Current usage of the upgrade queue (percentage)"
+    WazuhDBStatsItem:
+      type: object
+      properties:
+        uptime:
+          type: string
+          format: date-time
+          description: "When the count of the metrics started"
+        timestamp:
+          type: string
+          format: date-time
+          description: "Daemon stats request time"
+        name:
+          type: string
+          description: "Daemon name"
+          enum:
+            - wazuh-db
+        metrics:
+          type: object
+          properties:
+            queries:
+              type: object
+              properties:
+                received:
+                  type: integer
+                  format: int32
+                  description: "Total number of queries through WazuhDB socket"
+                received_breakdown:
+                  type: object
+                  properties:
+                    agent:
+                      type: integer
+                      format: int32
+                      description: "Number of agent queries through WazuhDB socket"
+                    agent_breakdown:
+                      type: object
+                      properties:
+                        db:
+                          type: object
+                          description: "Number of queries per operation"
+                          properties:
+                            begin:
+                              type: integer
+                              format: int32
+                            close:
+                              type: integer
+                              format: int32
+                            commit:
+                              type: integer
+                              format: int32
+                            remove:
+                              type: integer
+                              format: int32
+                            sql:
+                              type: integer
+                              format: int32
+                        tables:
+                          type: object
+                          description: "Number of queries per table"
+                          properties:
+                            ciscat:
+                              type: object
+                              properties:
+                                ciscat:
+                                  type: integer
+                                  format: int32
+                            rootcheck:
+                              type: object
+                              properties:
+                                rootcheck:
+                                  type: integer
+                                  format: int32
+                            sca:
+                              type: object
+                              properties:
+                                sca:
+                                  type: integer
+                                  format: int32
+                            sync:
+                              type: object
+                              properties:
+                                dbsync:
+                                  type: integer
+                                  format: int32
+                            syscheck:
+                              type: object
+                              properties:
+                                fim_file:
+                                  type: integer
+                                  format: int32
+                                fim_registry:
+                                  type: integer
+                                  format: int32
+                                fim_registry_key:
+                                  type: integer
+                                  format: int32
+                                fim_registry_value:
+                                  type: integer
+                                  format: int32
+                                syscheck:
+                                  type: integer
+                                  format: int32
+                            syscollector:
+                              type: object
+                              properties:
+                                syscollector_hotfixes:
+                                  type: integer
+                                  format: int32
+                                syscollector_hwinfo:
+                                  type: integer
+                                  format: int32
+                                syscollector_network_address:
+                                  type: integer
+                                  format: int32
+                                syscollector_network_iface:
+                                  type: integer
+                                  format: int32
+                                syscollector_network_protocol:
+                                  type: integer
+                                  format: int32
+                                syscollector_osinfo:
+                                  type: integer
+                                  format: int32
+                                syscollector_packages:
+                                  type: integer
+                                  format: int32
+                                syscollector_ports:
+                                  type: integer
+                                  format: int32
+                                syscollector_processes:
+                                  type: integer
+                                  format: int32
+                            deprecated:
+                              type: object
+                              properties:
+                                hardware:
+                                  type: integer
+                                  format: int32
+                                hotfix:
+                                  type: integer
+                                  format: int32
+                                netaddr:
+                                  type: integer
+                                  format: int32
+                                netinfo:
+                                  type: integer
+                                  format: int32
+                                netproto:
+                                  type: integer
+                                  format: int32
+                                osinfo:
+                                  type: integer
+                                  format: int32
+                                package:
+                                  type: integer
+                                  format: int32
+                                port:
+                                  type: integer
+                                  format: int32
+                                process:
+                                  type: integer
+                                  format: int32
+                    global:
+                      type: integer
+                      format: int32
+                      description: "Number of global queries through WazuhDB socket"
+                    global_breakdown:
+                      type: object
+                      properties:
+                        db:
+                          type: object
+                          description: "Number of queries per operation"
+                          properties:
+                            backup:
+                              type: integer
+                              format: int32
+                            sql:
+                              type: integer
+                              format: int32
+                        tables:
+                          type: object
+                          description: "Number of queries per operation in tables"
+                          properties:
+                            agent:
+                              type: object
+                              properties:
+                                delete-agent:
+                                  type: integer
+                                  format: int32
+                                disconnect-agents:
+                                  type: integer
+                                  format: int32
+                                find-agent:
+                                  type: integer
+                                  format: int32
+                                get-agent-info:
+                                  type: integer
+                                  format: int32
+                                get-agents-by-connection-status:
+                                  type: integer
+                                  format: int32
+                                get-all-agents:
+                                  type: integer
+                                  format: int32
+                                get-groups-integrity:
+                                  type: integer
+                                  format: int32
+                                insert-agent:
+                                  type: integer
+                                  format: int32
+                                reset-agents-connection:
+                                  type: integer
+                                  format: int32
+                                select-agent-group:
+                                  type: integer
+                                  format: int32
+                                select-agent-name:
+                                  type: integer
+                                  format: int32
+                                set-agent-groups:
+                                  type: integer
+                                  format: int32
+                                sync-agent-groups-get:
+                                  type: integer
+                                  format: int32
+                                sync-agent-info-get:
+                                  type: integer
+                                  format: int32
+                                sync-agent-info-set":
+                                  type: integer
+                                  format: int32
+                                update-agent-data:
+                                  type: integer
+                                  format: int32
+                                update-agent-name:
+                                  type: integer
+                                  format: int32
+                                update-connection-status:
+                                  type: integer
+                                  format: int32
+                                update-keepalive:
+                                  type: integer
+                                  format: int32
+                            belongs:
+                              type: object
+                              properties:
+                                get-group-agents:
+                                  type: integer
+                                  format: int32
+                                select-group-belong:
+                                  type: integer
+                                  format: int32
+                            group:
+                              type: object
+                              properties:
+                                delete-group:
+                                  type: integer
+                                  format: int32
+                                find-group:
+                                  type: integer
+                                  format: int32
+                                insert-agent-group:
+                                  type: integer
+                                  format: int32
+                                select-groups:
+                                  type: integer
+                                  format: int32
+                            labels:
+                              type: object
+                              properties:
+                                get-labels:
+                                  type: integer
+                                  format: int32
+                    mitre:
+                      type: integer
+                      format: int32
+                      description: "Number of mitre queries through WazuhDB socket"
+                    mitre_breakdown:
+                      type: object
+                      properties:
+                        db:
+                          type: object
+                          description: "Number of queries per operation"
+                          properties:
+                            sql:
+                              type: integer
+                              format: int32
+                    task:
+                      type: integer
+                      format: int32
+                      description: "Number of task queries through WazuhDB socket"
+                    task_breakdown:
+                      type: object
+                      properties:
+                        db:
+                          type: object
+                          description: "Number of queries per operation"
+                          properties:
+                            sql:
+                              type: integer
+                              format: int32
+                        tables:
+                          type: object
+                          description: "Number of queries per operation in tables"
+                          properties:
+                            tasks:
+                              type: object
+                              properties:
+                                delete_old:
+                                  type: integer
+                                  format: int32
+                                set_timeout:
+                                  type: integer
+                                  format: int32
+                                upgrade:
+                                  type: integer
+                                  format: int32
+                                upgrade_cancel_tasks:
+                                  type: integer
+                                  format: int32
+                                upgrade_custom:
+                                  type: integer
+                                  format: int32
+                                upgrade_get_status:
+                                  type: integer
+                                  format: int32
+                                upgrade_result:
+                                  type: integer
+                                  format: int32
+                                upgrade_update_status:
+                                  type: integer
+                                  format: int32
+                    wazuhdb:
+                      type: integer
+                      format: int32
+                      description: "Number of wazuhdb queries through WazuhDB socket"
+                    wazuhdb_breakdown:
+                      type: object
+                      properties:
+                        db:
+                          type: object
+                          description: "Number of queries per operation"
+                          properties:
+                            remove:
+                              type: integer
+                              format: int32
+                time:
+                  type: object
+                  properties:
+                    execution:
+                      type: integer
+                      format: int32
+                      description: "Total time taken by all the queries (milliseconds)"
+                    execution_breakdown:
+                      type: object
+                      properties:
+                        agent:
+                          type: integer
+                          format: int32
+                          description: "Time taken by all agent queries (milliseconds)"
+                        agent_breakdown:
+                          type: object
+                          properties:
+                            db:
+                              type: object
+                              description: "Time taken by all queries per operation (milliseconds)"
+                              properties:
+                                begin:
+                                  type: integer
+                                  format: int32
+                                close:
+                                  type: integer
+                                  format: int32
+                                commit:
+                                  type: integer
+                                  format: int32
+                                remove:
+                                  type: integer
+                                  format: int32
+                                sql:
+                                  type: integer
+                                  format: int32
+                            tables:
+                              type: object
+                              description: "Time taken by all queries per table (milliseconds)"
+                              properties:
+                                ciscat:
+                                  type: object
+                                  properties:
+                                    ciscat:
+                                      type: integer
+                                      format: int32
+                                rootcheck:
+                                  type: object
+                                  properties:
+                                    rootcheck:
+                                      type: integer
+                                      format: int32
+                                sca:
+                                  type: object
+                                  properties:
+                                    sca:
+                                      type: integer
+                                      format: int32
+                                sync:
+                                  type: object
+                                  properties:
+                                    dbsync:
+                                      type: integer
+                                      format: int32
+                                syscheck:
+                                  type: object
+                                  properties:
+                                    fim_file:
+                                      type: integer
+                                      format: int32
+                                    fim_registry:
+                                      type: integer
+                                      format: int32
+                                    fim_registry_key:
+                                      type: integer
+                                      format: int32
+                                    fim_registry_value:
+                                      type: integer
+                                      format: int32
+                                    syscheck:
+                                      type: integer
+                                      format: int32
+                                syscollector:
+                                  type: object
+                                  properties:
+                                    syscollector_hotfixes:
+                                      type: integer
+                                      format: int32
+                                    syscollector_hwinfo:
+                                      type: integer
+                                      format: int32
+                                    syscollector_network_address:
+                                      type: integer
+                                      format: int32
+                                    syscollector_network_iface:
+                                      type: integer
+                                      format: int32
+                                    syscollector_network_protocol:
+                                      type: integer
+                                      format: int32
+                                    syscollector_osinfo:
+                                      type: integer
+                                      format: int32
+                                    syscollector_packages:
+                                      type: integer
+                                      format: int32
+                                    syscollector_ports:
+                                      type: integer
+                                      format: int32
+                                    syscollector_processes:
+                                      type: integer
+                                      format: int32
+                                deprecated:
+                                  type: object
+                                  properties:
+                                    hardware:
+                                      type: integer
+                                      format: int32
+                                    hotfix:
+                                      type: integer
+                                      format: int32
+                                    netaddr:
+                                      type: integer
+                                      format: int32
+                                    netinfo:
+                                      type: integer
+                                      format: int32
+                                    netproto:
+                                      type: integer
+                                      format: int32
+                                    osinfo:
+                                      type: integer
+                                      format: int32
+                                    package:
+                                      type: integer
+                                      format: int32
+                                    port:
+                                      type: integer
+                                      format: int32
+                                    process:
+                                      type: integer
+                                      format: int32
+                        global:
+                          type: integer
+                          format: int32
+                          description: "Time taken by all global queries (milliseconds)"
+                        global_breakdown:
+                          type: object
+                          properties:
+                            db:
+                              type: object
+                              description: "Time taken by all queries per operation (milliseconds)"
+                              properties:
+                                backup:
+                                  type: integer
+                                  format: int32
+                                sql:
+                                  type: integer
+                                  format: int32
+                            tables:
+                              type: object
+                              description: "Time taken by all queries per operation in tables (milliseconds)"
+                              properties:
+                                agent:
+                                  type: object
+                                  properties:
+                                    delete-agent:
+                                      type: integer
+                                      format: int32
+                                    disconnect-agents:
+                                      type: integer
+                                      format: int32
+                                    find-agent:
+                                      type: integer
+                                      format: int32
+                                    get-agent-info:
+                                      type: integer
+                                      format: int32
+                                    get-agents-by-connection-status:
+                                      type: integer
+                                      format: int32
+                                    get-all-agents:
+                                      type: integer
+                                      format: int32
+                                    get-groups-integrity:
+                                      type: integer
+                                      format: int32
+                                    insert-agent:
+                                      type: integer
+                                      format: int32
+                                    reset-agents-connection:
+                                      type: integer
+                                      format: int32
+                                    select-agent-group:
+                                      type: integer
+                                      format: int32
+                                    select-agent-name:
+                                      type: integer
+                                      format: int32
+                                    set-agent-groups:
+                                      type: integer
+                                      format: int32
+                                    sync-agent-groups-get:
+                                      type: integer
+                                      format: int32
+                                    sync-agent-info-get:
+                                      type: integer
+                                      format: int32
+                                    sync-agent-info-set":
+                                      type: integer
+                                      format: int32
+                                    update-agent-data:
+                                      type: integer
+                                      format: int32
+                                    update-agent-name:
+                                      type: integer
+                                      format: int32
+                                    update-connection-status:
+                                      type: integer
+                                      format: int32
+                                    update-keepalive:
+                                      type: integer
+                                      format: int32
+                                belongs:
+                                  type: object
+                                  properties:
+                                    get-group-agents:
+                                      type: integer
+                                      format: int32
+                                    select-group-belong:
+                                      type: integer
+                                      format: int32
+                                group:
+                                  type: object
+                                  properties:
+                                    delete-group:
+                                      type: integer
+                                      format: int32
+                                    find-group:
+                                      type: integer
+                                      format: int32
+                                    insert-agent-group:
+                                      type: integer
+                                      format: int32
+                                    select-groups:
+                                      type: integer
+                                      format: int32
+                                labels:
+                                  type: object
+                                  properties:
+                                    get-labels:
+                                      type: integer
+                                      format: int32
+                        mitre:
+                          type: integer
+                          format: int32
+                          description: "Time taken by all mitre queries (milliseconds)"
+                        mitre_breakdown:
+                          type: object
+                          properties:
+                            db:
+                              type: object
+                              description: "Time taken by all queries per operation (milliseconds)"
+                              properties:
+                                sql:
+                                  type: integer
+                                  format: int32
+                        task:
+                          type: integer
+                          format: int32
+                          description: "Time taken by all task queries (milliseconds)"
+                        task_breakdown:
+                          type: object
+                          properties:
+                            db:
+                              type: object
+                              description: "Time taken by all queries per operation (milliseconds)"
+                              properties:
+                                sql:
+                                  type: integer
+                                  format: int32
+                            tables:
+                              type: object
+                              description: "Time taken by all queries per operation in tables (milliseconds)"
+                              properties:
+                                tasks:
+                                  type: object
+                                  properties:
+                                    delete_old:
+                                      type: integer
+                                      format: int32
+                                    set_timeout:
+                                      type: integer
+                                      format: int32
+                                    upgrade:
+                                      type: integer
+                                      format: int32
+                                    upgrade_cancel_tasks:
+                                      type: integer
+                                      format: int32
+                                    upgrade_custom:
+                                      type: integer
+                                      format: int32
+                                    upgrade_get_status:
+                                      type: integer
+                                      format: int32
+                                    upgrade_result:
+                                      type: integer
+                                      format: int32
+                                    upgrade_update_status:
+                                      type: integer
+                                      format: int32
+                        wazuhdb:
+                          type: integer
+                          format: int32
+                          description: "Time taken by all wazuhdb queries (milliseconds)"
+                        wazuhdb_breakdown:
+                          type: object
+                          properties:
+                            db:
+                              type: object
+                              description: "Time taken by all queries per operation (milliseconds)"
+                              properties:
+                                remove:
+                                  type: integer
+                                  format: int32
+    WazuhDaemonsStatus:
+      type: object
+      properties:
+        wazuh-agentlessd:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-analysisd:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-authd:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-csyslogd:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-dbd:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-execd:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-integratord:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-logcollector:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-maild:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-monitord:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-remoted:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-reportd:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-syscheckd:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-apid:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-clusterd:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-db:
+          $ref: '#/components/schemas/DaemonStatus'
+        wazuh-modulesd:
+          $ref: '#/components/schemas/DaemonStatus'
+    WazuhInfo:
+      type: object
+      properties:
+        path:
+          type: string
+          format: paths
+          description: "Wazuh installation path"
+        version:
+          type: string
+          description: "Wazuh version"
+        type:
+          type: string
+          description: "Wazuh installation type"
+          enum:
+            - server
+            - local
+            - hybrid
+        max_agents:
+          type: string
+          minimum: 0
+          description: "Maximum number of agents that can be registered."
+        openssl_support:
+          type: string
+        tz_offset:
+          type: string
+        tz_name:
+          type: string
+        uuid:
+          type: string
+          nullable: true
+    WazuhManagerConfiguration:
+      type: object
+      properties:
+        active-response:
+          type: array
+          items:
+            type: object
+        agentless:
+          type: array
+          items:
+            type: object
+        alerts:
+          type: object
+        auth:
+          type: object
+        cluster:
+          type: object
+        command:
+          type: array
+          items:
+            type: object
+        database_output:
+          type: object
+        email_alerts:
+          type: object
+        gcp-pubsub:
+          type: object
+        global:
+          type: object
+        integration:
+          type: array
+          items:
+            type: object
+        labels:
+          type: object
+        localfile:
+          type: array
+          items:
+            type: object
+        logging:
+          type: object
+        remote:
+          type: array
+          items:
+            type: object
+        reports:
+          type: object
+        rootcheck:
+          type: object
+        ruleset:
+          type: object
+        sca:
+          type: object
+        socket:
+          type: object
+        syscheck:
+          type: object
+        syslog_output:
+          type: array
+          items:
+            type: object
+        #Wodle sections inside WazuhConfiguration(ossec.conf)
+        aws-s3:
+          type: object
+        azure-logs:
+          type: object
+        cis-cat:
+          type: object
+        docker-listener:
+          type: object
+        open-scap:
+          type: object
+        osquery:
+          type: object
+        syscollector:
+          type: object
+    WazuhStats:
+      type: object
+      items:
+        type: object
+        properties:
+          alerts:
+            type: array
+            items:
+              type: object
+              properties:
+                sigid:
+                  type: integer
+                  format: int32
+                  description: "Rule ID that matched the event"
+                level:
+                  type: integer
+                  format: int32
+                  minimum: 0
+                  maximum: 15
+                  description: "Alert level"
+                times:
+                  type: integer
+                  format: int32
+                  description: "Number of times the alert was raised during the specified hour"
+            events:
+              type: integer
+              format: int32
+              description: "Number of events processed during the specified hour"
+            firewall:
+              type: integer
+              format: int32
+              description: "Number of firewall alerts raised during the specified hour"
+            hour:
+              type: integer
+              format: int32
+              description: "Hour of the day in 24h format"
+            syscheck:
+              type: integer
+              format: int32
+              description: "Number of syscheck alerts raised during the specified hour"
+            totalAlerts:
+              type: integer
+              format: int32
+              description: "Number of alerts raised during the specified hour"
+    WazuhHourlyStats:
+      type: object
+      properties:
+        averages:
+          type: array
+          maxLength: 24
+          minLength: 24
+          description: "Array containing the number of alerts for every hour"
+          items:
+            type: integer
+        interactions:
+          type: integer
+          format: int32
+    WazuhWeeklyStats:
+      type: object
+      properties:
+        Sun:
+          $ref: '#/components/schemas/WazuhHourlyStats'
+        Mon:
+          $ref: '#/components/schemas/WazuhHourlyStats'
+        Tue:
+          $ref: '#/components/schemas/WazuhHourlyStats'
+        Wed:
+          $ref: '#/components/schemas/WazuhHourlyStats'
+        Thu:
+          $ref: '#/components/schemas/WazuhHourlyStats'
+        Fri:
+          $ref: '#/components/schemas/WazuhHourlyStats'
+        Sat:
+          $ref: '#/components/schemas/WazuhHourlyStats'
+    WazuhAnalysisdStats:
+      type: object
+      properties:
+        alerts_queue_size:
+          type: number
+          format: float
+          description: "Pending to write in disk alerts queue size"
+        alerts_queue_usage:
+          type: number
+          format: float
+          description: "If an event matches a rule, an alert is raised. The alerts are pushed to a _pending to write in disk alerts_ queue. This variable shows usage of that queue"
+        alerts_written:
+          type: number
+          format: float
+          description: "Total number of alerts written in disk during the last 5 seconds"
+        archives_queue_size:
+          type: number
+          format: float
+          description: "_Events to write in the archives.log_ queue size"
+        archives_queue_usage:
+          type: number
+          format: float
+          description: "_Events to write in the archives.log_ queue usage"
+        event_queue_size:
+          type: number
+          format: float
+          description: "Non-catalogued events queue size"
+        event_queue_usage:
+          type: number
+          format: float
+          description: "Same as `syscheck_queue_usage` but for events not catalogued in any of the previously mentioned queues"
+        events_dropped:
+          type: number
+          format: float
+          description: "Discarded events because they didn't match any rule in the ruleset"
+        events_processed:
+          type: number
+          format: float
+          description: "Total number of events processed (i.e. matched against Wazuh ruleset) in the last 5 seconds"
+        events_received:
+          type: number
+          format: float
+          description: "Events received in `analysisd` from the rest of modules in the last 5 seconds"
+        firewall_queue_size:
+          type: number
+          format: float
+          description: "_Events to write in the firewall log_ queue size"
+        firewall_queue_usage:
+          type: number
+          format: float
+          description: "Percentage of use in the queue of events to write in the firewall log"
+        firewall_written:
+          type: number
+          format: float
+          description: "Same as `alerts_written` but focusing on firewall alerts"
+        fts_written:
+          type: number
+          format: float
+          description: "Same as `alerts_written` but focusing on [FTS alerts] (https://documentation.wazuh.com/4.13/user-manual/ruleset/ruleset-xml-syntax/decoders.html?highlight=fts #fts)"
+        hostinfo_queue_size:
+          type: number
+          format: float
+          description: "Hostinfo events queue size"
+        hostinfo_queue_usage:
+          type: number
+          format: float
+          description: "Same as `syscheck_queue_usage` but for hostinfo events"
+        other_events_decoded:
+          type: number
+          format: float
+          description: "Same as `total_events_decoded` but for non-catalogued events"
+        rootcheck_events_decoded:
+          type: number
+          format: float
+          description: "Same as `total_events_decoded` but for rootcheck events"
+        rootcheck_queue_size:
+          type: number
+          format: float
+          description: "Rootcheck events queue size"
+        rootcheck_queue_usage:
+          type: number
+          format: float
+          description: "Same as `syscheck_queue_usage` but for rootcheck events"
+        rule_matching_queue_size:
+          type: number
+          format: float
+          description: "Pending to process events queue size"
+        rule_matching_queue_usage:
+          type: number
+          format: float
+          description: "After decoding, events are pushed to a _pending to process_ queue which will match the events against the Wazuh ruleset to raise alerts. This variable shows usage of that queue"
+        sca_events_decoded:
+          type: number
+          format: float
+          description: "Same as `total_events_decoded` but for policy monitoring events"
+        sca_queue_size:
+          type: number
+          format: float
+          description: "Policy monitoring events queue size"
+        sca_queue_usage:
+          type: number
+          format: float
+          description: "Same as `syscheck_queue_usage` but for policy monitoring events"
+        statistical_queue_size:
+          type: number
+          format: float
+          description: "Stats log queue size"
+        statistical_queue_usage:
+          type: number
+          format: float
+          description: "Stats log queue usage"
+        syscheck_events_decoded:
+          type: number
+          format: float
+          description: "Same as `total_events_decoded` but for FIM events"
+        syscheck_queue_size:
+          type: number
+          format: float
+          description: "Syscheck events queue size"
+        syscheck_queue_usage:
+          type: number
+          format: float
+          description: "Percentage of use in the syscheck events queue pending to be decoded. Events are discarded when the queue is full"
+        syscollector_events_decoded:
+          type: number
+          format: float
+          description: "Same as `total_events_decoded` but for system inventory events"
+        syscollector_queue_size:
+          type: number
+          format: float
+          description: "System inventory events queue size"
+        syscollector_queue_usage:
+          type: number
+          format: float
+          description: "Same as `syscheck_queue_usage` but for system inventory events"
+        total_events_decoded:
+          type: number
+          format: float
+          description: "Total events decoded in the last 5 seconds. This number is not accumulative, the number in the following 5 seconds can be lower than the previous one"
+        winevt_events_decoded:
+          type: number
+          format: float
+          description: "Same as `total_events_decoded` but for Windows events"
+        winevt_queue_size:
+          type: number
+          format: float
+          description: "Windows events queue size"
+        winevt_queue_usage:
+          type: number
+          format: float
+          description: "Same as `syscheck_queue_usage` but for Windows events"
+    WazuhRemotedStats:
+      type: object
+      properties:
+        ctrl_msg_count:
+          type: number
+          format: float
+          description: "Number of control messages received from all agents during the last five seconds"
+        discarded_count:
+          type: number
+          format: float
+          description: "Number of discarded events received from agents during the last five seconds"
+        evt_count:
+          type: number
+          format: float
+          description: "Number of events sent to analysisd during the last five seconds"
+        sent_bytes:
+          type: number
+          format: float
+          description: "Number of sent bytes to the agents during the last five seconds"
+        queue_size:
+          type: number
+          format: float
+          description: "Usage of the queue to storage events from agents"
+        recv_bytes:
+          type: number
+          format: float
+          description: "Number of received bytes from all agents during the last five seconds"
+        tcp_sessions:
+          type: number
+          format: float
+          description: "Number of TCP active sessions during the last five seconds"
+        total_queue_size:
+          type: number
+          format: float
+          description: "Total queue size to store events from agents"
+    WazuhLogs:
+      type: object
+      properties:
+        description:
+          type: string
+          description: "Log message"
+        level:
+          type: string
+          description: "Log level"
+          enum:
+            - critical
+            - debug
+            - debug2
+            - error
+            - info
+            - warning
+        tag:
+          type: string
+          format: alphanumeric
+          description: "Wazuh component that logged the event"
+        timestamp:
+          type: string
+          format: date-time
+    ValidationStatus:
+      type: object
+      properties:
+        name:
+          type: string
+          description: "Node name"
+        status:
+          type: string
+          description: "Status value"
+          enum:
+            - OK
+    LogSummary:
+      type: object
+      properties:
+        all:
+          type: integer
+          format: int32
+          minimum: 0
+        critical:
+          type: integer
+          format: int32
+          minimum: 0
+        debug:
+          type: integer
+          format: int32
+          minimum: 0
+        error:
+          type: integer
+          format: int32
+          minimum: 0
+        info:
+          type: integer
+          format: int32
+          minimum: 0
+        warning:
+          type: integer
+          format: int32
+          minimum: 0
+    WazuhLogsSummary:
+      type: object
+      properties:
+        indexer-connector:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-agentlessd:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-analysisd:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-authd:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-csyslogd:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-dbd:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-execd:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-integratord:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-maild:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-monitord:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-logcollector:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-remoted:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-reportd:
+          $ref: '#/components/schemas/LogSummary'
+        rootcheck:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-syscheckd:
+          $ref: '#/components/schemas/LogSummary'
+        sca:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-db:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:agent-upgrade:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:aws-s3:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:azure-logs:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:ciscat:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:control:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:command:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:content_manager:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:database:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:docker-listener:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:download:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:oscap:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:osquery:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:syscollector:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:vulnerability-scanner:
+          $ref: '#/components/schemas/LogSummary'
+        wazuh-modulesd:task-manager:
+          $ref: '#/components/schemas/LogSummary'
+    ConfirmationMessage:
+      type: object
+      properties:
+        message:
+          type: string
+          description: "Confirmation message"
+    ConfigurationValidation:
+      type: object
+      properties:
+        status:
+          type: string
+          description: "Configuration status"
+          enum:
+            - OK
+    APIconfiguration:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        access:
+          description: API Security Options
+          type: object
+          additionalProperties: false
+          properties:
+            max_login_attempts:
+              description: "Maximum number of login attempts in {block_time} seconds"
+              type: integer
+              format: int32
+              minimum: 1
+              example: 50
+            block_time:
+              description: "Blocking time for IPs that have exceeded {max_login_attempts}. Time counts from the first attempt"
+              type: integer
+              format: int32
+              minimum: 0
+              example: 300
+            max_request_per_minute:
+              description: "Maximum number of requests allowed per minute"
+              type: integer
+              format: int32
+              minimum: 1
+              example: 300
+        logs:
+          type: object
+          additionalProperties: false
+          properties:
+            level:
+              description: "Verbosity level of API logs"
+              default: info
+              type: string
+              enum: [disabled, info, warning, error, debug, debug2]
+        cors:
+          type: object
+          additionalProperties: false
+          properties:
+            enabled:
+              description: "Enable CORS"
+              type: boolean
+              default: false
+            source_route:
+              description: "Sources for which the resources will be available. For example 'http://client.example.org'"
+              type: string
+              example: '*'
+            expose_headers:
+              description: "Which headers can be exposed as part of the response"
+              type: string
+              example: '*'
+            allow_headers:
+              description: "Which HTTP headers can be used during the actual request"
+              type: string
+              example: '*'
+            allow_credentials:
+              description: "Browsers will only expose the response to frontend JavaScript code if this is enabled"
+              type: boolean
+              default: false
+        experimental_features:
+          description: "Enable features under development"
+          type: boolean
+          default: false
+        authentication_pool_size:
+          description: "Number of processes dedicated to processing authentication requests"
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 2
+    LastScan:
+      type: object
+      properties:
+        end:
+          type: string
+          nullable: true
+          format: date-time
+          description: "Date when the latest scan finished. If it is in progress, or no scans have been run, null will be returned"
+        start:
+          type: string
+          nullable: true
+          format: date-time
+          description: "Date when the latest scan started. If no scans have been run, null will be returned"
+    NewVersions:
+      type: object
+      properties:
+        last_check_date:
+          type: string
+          description: "Datetime of the last query to the CTI service"
+        current_version:
+          type: string
+          description: "Current version in the format vX.Y.Z"
+        update_check:
+          type: boolean
+          description: "Flag that indicates if the service is enabled"
+        last_available_major:
+          type: object
+          description: "Information about the most recent available major update"
+          properties:
+            tag:
+              type: string
+              description: "Version in the format vX.Y.Z"
+            description:
+              type: string
+            title:
+              type: string
+            published_date:
+              type: string
+            semver:
+              type: object
+              properties:
+                major:
+                  type: integer
+                  format: int32
+                minor:
+                  type: integer
+                  format: int32
+                patch:
+                  type: integer
+                  format: int32
+        last_available_minor:
+          type: object
+          description: "Information about the most recent available minor update"
+          properties:
+            tag:
+              type: string
+              description: "Version in the format vX.Y.Z"
+            description:
+              type: string
+            title:
+              type: string
+            published_date:
+              type: string
+            semver:
+              type: object
+              properties:
+                major:
+                  type: integer
+                  format: int32
+                minor:
+                  type: integer
+                  format: int32
+                patch:
+                  type: integer
+                  format: int32
+        last_available_patch:
+          type: object
+          description: "Information about the most recent available patch update"
+          properties:
+            tag:
+              type: string
+              description: "Version in the format vX.Y.Z"
+            description:
+              type: string
+            title:
+              type: string
+            published_date:
+              type: string
+            semver:
+              type: object
+              properties:
+                major:
+                  type: integer
+                  format: int32
+                minor:
+                  type: integer
+                  format: int32
+                patch:
+                  type: integer
+                  format: int32
+        uuid:
+          type: string
+          description: "Identifier of the Wazuh instance"
+    # Rules models
+    RuleFile:
+      allOf:
+        - $ref: '#/components/schemas/RulesetFile'
+        - $ref: '#/components/schemas/RulesetStatus'
+    Rule:
+      allOf:
+        - $ref: '#/components/schemas/RuleFile'
+        - type: object
+          properties:
+            description:
+              type: string
+              description: "Rule description. This description is shown when an alert matching the rule is raised"
+            details:
+              type: object
+              description: "Rule definition details"
+            gdpr:
+              type: array
+              description: "GDPR checks the rule is checking"
+              items:
+                type: string
+            gpg13:
+              type: array
+              description: "GPG13 checks the rule is checking"
+              items:
+                type: string
+            groups:
+              type: array
+              description: "Groups the rule belongs to"
+              items:
+                type: string
+            hipaa:
+              type: array
+              description: "HIPAA checks the rule is checking"
+              items:
+                type: string
+            id:
+              type: integer
+              format: int32
+              description: "Rule ID"
+            level:
+              type: integer
+              format: int32
+              minimum: 0
+              maximum: 15
+              description: "Rule level"
+            nist-800-53:
+              type: array
+              description: "NIST-800-53 checks the rule is checking"
+              items:
+                type: string
+            tsc:
+              type: array
+              description: "TSC checks the rule is checking"
+              items:
+                type: string
+            pci:
+              type: array
+              description: "PCI DSS checks the rule is checking"
+              items:
+                type: string
+    SecurityConfiguration:
+      type: object
+      minProperties: 1
+      properties:
+        auth_token_exp_timeout:
+          description: "Time in seconds until the token expires"
+          type: integer
+          format: int32
+          minimum: 30
+          example: 900
+        rbac_mode:
+          description: "RBAC mode (white/black)"
+          type: string
+          enum: [white, black]
+          example: white
+    # SCA models
+    SCAChecks:
+      type: object
+      properties:
+        description:
+          type: string
+          description: "A description of what is being checked"
+        directory:
+          type: string
+          description: "Analyzed directories"
+        file:
+          type: string
+          description: "Analyzed file path"
+        id:
+          type: integer
+          format: int32
+          description: "Policy check ID. A policy contains multiple checks"
+        policy_id:
+          type: string
+          description: "Scanned policy ID"
+        process:
+          type: string
+          description: "Check whether a process is running or not. It's only returned when the checked process is running"
+        rationale:
+          type: string
+          description: "Explain why this check is necessary"
+        references:
+          type: string
+          description: "A link to a documentation page about the check"
+        remediation:
+          type: string
+          description: "Explain how to fix the check, this field is very useful in case the check failed"
+        result:
+          type: string
+          description: "Check result"
+          enum:
+            - passed
+            - failed
+            - "not applicable"
+        title:
+          type: string
+          description: "A brief description of what is being checked"
+        condition:
+          type: string
+          description: "Specify how rule results are aggregated in order to calculate the final value of a check"
+          enum:
+            - all
+            - any
+            - none
+    SCADatabase:
+      type: object
+      properties:
+        description:
+          type: string
+          description: "Brief description of what the policy is checking"
+        end_scan:
+          type: string
+          format: date-time
+          description: "When the last scan finished"
+        fail:
+          type: integer
+          format: int32
+          description: "Number of failed checks. If this number is higher than 0 the host has a vulnerability"
+        name:
+          type: string
+          description: "Policy name"
+        pass:
+          type: integer
+          format: int32
+          description: "Number of passed checks"
+        policy_id:
+          type: string
+          description: "Policy ID"
+        references:
+          type: string
+          description: "A link to a documentation page about the policy"
+        score:
+          type: integer
+          format: int32
+          description: "Percentage of passed checks"
+        start_scan:
+          type: string
+          format: date-time
+          description: "When the last scan started"
+    # Syscheck models
+    SyscheckDatabase:
+      type: object
+      properties:
+        changes:
+          type: integer
+          format: int32
+          description: "Number of changes applied"
+        sha1:
+          type: string
+          format: hash_or_empty
+          description: "SHA1 checksum of the file"
+        file:
+          type: string
+          description: "File name that raised the alert"
+        md5:
+          type: string
+          format: hash_or_empty
+          description: "MD5 checksum of the file"
+        inode:
+          type: integer
+          format: int32
+          description: "Inode of the file. Only available in Linux agents"
+        uid:
+          type: string
+          format: numbers_or_empty
+          description: "UID of the file"
+        date:
+          type: string
+          format: date-time
+          description: "Date when the alert was raised"
+        perm:
+          type: string
+          format: names_or_empty
+          description: "File permissions"
+        gname:
+          type: string
+          format: names_or_empty
+          description: "Group name. Only available in Linux agents"
+        uname:
+          type: string
+          format: names_or_empty
+          description: "User name of the file"
+        size:
+          type: integer
+```

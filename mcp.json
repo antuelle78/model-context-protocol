@@ -1,7 +1,0 @@
-{
-  "mcpServers": {
-    "ITSM Gateway": {
-      "url": "http://<YOUR_HOST_IP>:8000/api/v1/mcp"
-    }
-  }
-}

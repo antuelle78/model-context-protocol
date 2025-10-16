@@ -1,0 +1,8 @@
+
+version: '3.8'
+
+services:
+  file_fetch_tool:
+    build: .
+    ports:
+      - "8002:8002"
